@@ -192,7 +192,7 @@ async function sendVoucherEmail(leadData, selectedCombo) {
     const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedCombo?.price || 0);
 
     // Public key only. Khi trien khai that can gioi han domain/origin tren EmailJS va them chong spam/rate limit.
-    return window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    const templateParams = {
         to_email: leadData.email,
         to_name: leadData.name,
         voucher_code: leadData.code,
@@ -202,7 +202,21 @@ async function sendVoucherEmail(leadData, selectedCombo) {
         combo_itinerary: formatItineraryForEmail(selectedCombo),
         discount: selectedCombo?.discount || '',
         expires_at: leadData.expiresAtText || formatLeadDateTime(leadData.expiresAt)
+    };
+
+    console.log("Dang gui email voucher qua EmailJS:", {
+        serviceId: EMAILJS_SERVICE_ID,
+        templateId: EMAILJS_TEMPLATE_ID,
+        toEmail: templateParams.to_email,
+        templateParams
     });
+
+    return window.emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        { publicKey: EMAILJS_PUBLIC_KEY }
+    );
 }
 
 function getLeadStatusTimestamp(lead, status = getEffectiveLeadStatus(lead)) {
@@ -805,10 +819,15 @@ window.submitLead = async function() {
 
     // Hiển thị giao diện Thành công
     try {
-        await sendVoucherEmail(leadData, selectedCombo);
-        console.log("Email voucher da duoc gui qua EmailJS.");
+        const emailResult = await sendVoucherEmail(leadData, selectedCombo);
+        console.log("Email voucher da duoc gui qua EmailJS:", emailResult);
     } catch (e) {
-        console.error("Loi khi gui email voucher qua EmailJS: ", e);
+        console.error("Loi khi gui email voucher qua EmailJS: ", {
+            status: e?.status,
+            text: e?.text,
+            message: e?.message,
+            error: e
+        });
         alert("Voucher đã được tạo, nhưng email có thể chưa gửi được. Bạn hãy chụp lại mã voucher.");
     }
 

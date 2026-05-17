@@ -312,7 +312,7 @@ window.renderTrendingCombos = function() {
         .slice(0, 5);
 
     grid.innerHTML = trendingCombos.map((combo, index) => `
-        <article class="combo-card min-w-[280px] md:min-w-[360px] snap-start rounded-3xl overflow-hidden group">
+        <article class="combo-card trending-card snap-start rounded-3xl overflow-hidden group">
             <div class="h-52 relative overflow-hidden cursor-pointer" onclick="window.openComboDetail(${combo.id})">
                 <img src="${getComboImage(combo)}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-700 group-hover:scale-110" alt="${combo.title}">
                 <div class="absolute top-4 left-4 ${index === 0 ? 'top-1-glow bg-yellow-400 text-black' : 'btn-gradient text-white'} font-black px-4 py-2 rounded-xl shadow-lg text-sm z-10">#${index + 1} Trending</div>
@@ -330,6 +330,119 @@ window.renderTrendingCombos = function() {
             </div>
         </article>
     `).join('');
+};
+
+window.initTrendingAutoScroll = function() {
+    const grid = document.getElementById('trending-grid');
+    if (!grid) return;
+
+    if (grid._trendingRafId) {
+        cancelAnimationFrame(grid._trendingRafId);
+        grid._trendingRafId = null;
+    }
+    if (grid._trendingAbortController) {
+        grid._trendingAbortController.abort();
+    }
+    grid._trendingAbortController = new AbortController();
+    const listenerOptions = { signal: grid._trendingAbortController.signal };
+    const passiveListenerOptions = { passive: true, signal: grid._trendingAbortController.signal };
+
+    grid.querySelectorAll('[data-trending-clone="true"]').forEach(clone => clone.remove());
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const originalCards = Array.from(grid.children);
+    if (originalCards.length === 0) return;
+
+    const updateCenterCard = () => {
+        const gridRect = grid.getBoundingClientRect();
+        const centerX = gridRect.left + gridRect.width / 2;
+        let closestCard = null;
+        let closestDistance = Number.POSITIVE_INFINITY;
+
+        Array.from(grid.children).forEach(card => {
+            const cardRect = card.getBoundingClientRect();
+            const cardCenter = cardRect.left + cardRect.width / 2;
+            const distance = Math.abs(centerX - cardCenter);
+
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestCard = card;
+            }
+        });
+
+        grid.querySelectorAll('.is-center').forEach(card => card.classList.remove('is-center'));
+        if (closestCard) closestCard.classList.add('is-center');
+    };
+
+    if (prefersReducedMotion || originalCards.length < 2) {
+        updateCenterCard();
+        grid.addEventListener('scroll', updateCenterCard, passiveListenerOptions);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    originalCards.forEach(card => {
+        const clone = card.cloneNode(true);
+        clone.dataset.trendingClone = 'true';
+        clone.setAttribute('aria-hidden', 'true');
+        fragment.appendChild(clone);
+    });
+    grid.appendChild(fragment);
+
+    let firstClone = grid.querySelector('[data-trending-clone="true"]');
+    let loopWidth = firstClone ? firstClone.offsetLeft - originalCards[0].offsetLeft : grid.scrollWidth / 2;
+    let lastFrameTime = performance.now();
+    let isPaused = false;
+    let resumeTimer = null;
+    const speed = 0.028;
+
+    const recalculateLoopWidth = () => {
+        firstClone = grid.querySelector('[data-trending-clone="true"]');
+        loopWidth = firstClone ? firstClone.offsetLeft - originalCards[0].offsetLeft : grid.scrollWidth / 2;
+        updateCenterCard();
+    };
+
+    const pause = () => {
+        isPaused = true;
+        if (resumeTimer) clearTimeout(resumeTimer);
+    };
+
+    const resume = (delay = 0) => {
+        if (resumeTimer) clearTimeout(resumeTimer);
+        resumeTimer = setTimeout(() => {
+            lastFrameTime = performance.now();
+            isPaused = false;
+        }, delay);
+    };
+
+    const tick = (time) => {
+        const delta = Math.min(time - lastFrameTime, 48);
+        lastFrameTime = time;
+
+        if (!isPaused && loopWidth > 0) {
+            grid.scrollLeft += delta * speed;
+
+            if (grid.scrollLeft >= loopWidth) {
+                grid.scrollLeft -= loopWidth;
+            }
+
+            updateCenterCard();
+        }
+
+        grid._trendingRafId = requestAnimationFrame(tick);
+    };
+
+    grid.addEventListener('mouseenter', pause, listenerOptions);
+    grid.addEventListener('mouseleave', () => resume(120), listenerOptions);
+    grid.addEventListener('focusin', pause, listenerOptions);
+    grid.addEventListener('focusout', () => resume(120), listenerOptions);
+    grid.addEventListener('touchstart', pause, passiveListenerOptions);
+    grid.addEventListener('touchend', () => resume(1400), passiveListenerOptions);
+    grid.addEventListener('scroll', updateCenterCard, passiveListenerOptions);
+    window.addEventListener('resize', recalculateLoopWidth, listenerOptions);
+
+    recalculateLoopWidth();
+    grid._trendingRafId = requestAnimationFrame(tick);
 };
 
 window.startRandomizer = function() {
@@ -1127,6 +1240,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     window.renderTrendingCombos();
+    window.initTrendingAutoScroll();
     window.populateInviteCombos();
     
     if(document.getElementById('fomo-toast')) {

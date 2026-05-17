@@ -55,6 +55,54 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+        .trending-carousel {
+            gap: 2rem;
+            cursor: grab;
+            overscroll-behavior-x: contain;
+            scroll-snap-type: x proximity;
+            mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
+            -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
+            will-change: scroll-position;
+        }
+        .trending-carousel:active { cursor: grabbing; }
+        .trending-card {
+            flex: 0 0 calc((100% - 4rem) / 3);
+            min-width: 0;
+            transform: translateZ(0) scale(0.96);
+            opacity: 0.78;
+            transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease, border-color 420ms ease, box-shadow 420ms ease;
+            will-change: transform;
+        }
+        .trending-card.is-center {
+            transform: translateZ(0) scale(1);
+            opacity: 1;
+            border-color: rgba(251, 146, 60, 0.32);
+            box-shadow: 0 24px 60px rgba(244, 63, 94, 0.18), 0 0 36px rgba(251, 146, 60, 0.08);
+        }
+        .trending-card:hover {
+            transform: translateY(-8px) scale(1.025);
+            border-color: rgba(244, 63, 94, 0.56);
+            box-shadow: 0 24px 56px rgba(244, 63, 94, 0.24), 0 0 42px rgba(168, 85, 247, 0.16);
+        }
+        @media (max-width: 1023px) {
+            .trending-card { flex-basis: calc((100% - 2rem) / 2); }
+        }
+        @media (max-width: 639px) {
+            .trending-carousel {
+                gap: 1rem;
+                scroll-snap-type: x mandatory;
+                mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+                -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+            }
+            .trending-card { flex-basis: 86%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .trending-card,
+            .trending-card img {
+                transition-duration: 0.01ms !important;
+            }
+        }
+
         .ticket-cutout { position: relative; }
         .ticket-cutout::before, .ticket-cutout::after {
             content: ''; position: absolute; top: 50%; transform: translateY(-50%); width: 20px; height: 20px;
@@ -210,7 +258,7 @@
                         <span class="w-2.5 h-2.5 bg-green-500 rounded-full mr-2.5 animate-ping"></span> Live Updates
                     </div>
                 </div>
-                <div id="trending-grid" class="flex overflow-x-auto gap-8 pb-10 hide-scrollbar snap-x snap-mandatory scroll-smooth px-2 pt-4"></div>
+                <div id="trending-grid" class="trending-carousel flex overflow-x-auto pb-10 hide-scrollbar px-2 pt-4"></div>
             </div>
         </section>
 

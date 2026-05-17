@@ -36,6 +36,9 @@ const VISIBILITY_FACTOR = {
     mood: 1.15,
     featured: 1.3
 };
+const EMAILJS_PUBLIC_KEY = "RU8QbESICVGc8h_rl";
+const EMAILJS_SERVICE_ID = "service_2026";
+const EMAILJS_TEMPLATE_ID = "template_fcoq5lq";
 const LEAD_STATUSES = {
     pending: {
         label: 'Pending',
@@ -81,6 +84,20 @@ function getComboItinerary(combo) {
         location: combo?.address || 'TP.HCM'
     }];
 }
+
+function getGoogleMapsDirectionsUrl(location) {
+    const safeLocation = String(location || '').trim();
+    if (!safeLocation) return '#';
+
+    const lowerLocation = safeLocation.toLowerCase();
+    const normalizedLocation = lowerLocation.includes('tp.hcm') || lowerLocation.includes('hồ chí minh') || lowerLocation.includes('ho chi minh')
+        ? safeLocation
+        : `${safeLocation}, TP.HCM`;
+
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(normalizedLocation)}`;
+}
+
+window.getGoogleMapsDirectionsUrl = getGoogleMapsDirectionsUrl;
 
 function getInflationFactor() {
     const currentYear = new Date().getFullYear();
@@ -153,6 +170,39 @@ function formatLeadDateTime(timestamp) {
     const date = new Date(Number(timestamp));
     if (!Number.isFinite(date.getTime())) return '';
     return date.toLocaleTimeString('vi-VN') + ' - ' + date.toLocaleDateString('vi-VN');
+}
+
+function formatItineraryForEmail(combo) {
+    return getComboItinerary(combo)
+        .map(item => {
+            const time = item?.time || '';
+            const activity = item?.activity || '';
+            const location = item?.location || '';
+
+            return [time, activity, location].filter(Boolean).join(' - ');
+        })
+        .join('\n');
+}
+
+async function sendVoucherEmail(leadData, selectedCombo) {
+    if (!window.emailjs) {
+        throw new Error('EmailJS SDK is not available.');
+    }
+
+    const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedCombo?.price || 0);
+
+    // Public key only. Khi trien khai that can gioi han domain/origin tren EmailJS va them chong spam/rate limit.
+    return window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_email: leadData.email,
+        to_name: leadData.name,
+        voucher_code: leadData.code,
+        combo_title: selectedCombo?.title || leadData.combo,
+        combo_price: formattedPrice,
+        combo_address: selectedCombo?.address || '',
+        combo_itinerary: formatItineraryForEmail(selectedCombo),
+        discount: selectedCombo?.discount || '',
+        expires_at: leadData.expiresAtText || formatLeadDateTime(leadData.expiresAt)
+    });
 }
 
 function getLeadStatusTimestamp(lead, status = getEffectiveLeadStatus(lead)) {
@@ -547,6 +597,13 @@ window.resetFilters = function() {
 window.openComboDetail = function(id) {
     const combo = combos.find(c => c.id === id);
     if(!combo) return;
+    const comboAddress = (combo.address || '').trim();
+    const comboDirectionsButton = comboAddress ? `
+        <a href="${getGoogleMapsDirectionsUrl(comboAddress)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 btn-gradient text-white text-xs md:text-sm font-black px-4 py-2 rounded-xl shadow-lg hover:scale-105 transition shrink-0">
+            <i class="fa-solid fa-route"></i>
+            Chỉ đường
+        </a>
+    ` : '';
 
     document.getElementById('detail-img').src = getComboImage(combo);
     document.getElementById('detail-category').innerHTML = `<i class="fa-solid ${combo.icon} mr-1"></i> ${combo.category === 'low' ? 'Bình dân' : (combo.category === 'mid' ? 'Tiêu chuẩn' : 'Cao cấp')}`;
@@ -559,8 +616,9 @@ window.openComboDetail = function(id) {
         <i class="fa-solid fa-location-dot text-rose-500 mt-1 mr-3 text-xl"></i>
         <div class="flex-1">
             <span class="block text-gray-400 mb-1 text-xs font-bold uppercase tracking-widest">Khu vực chính</span>
-            <div class="flex items-center justify-between">
-                <span class="text-white font-bold text-lg">${combo.address}</span>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <span class="text-white font-bold text-lg">${comboAddress || 'Chua cap nhat dia diem'}</span>
+                ${comboDirectionsButton}
             </div>
         </div>
     `;
@@ -570,14 +628,25 @@ window.openComboDetail = function(id) {
     const timelineContainer = document.getElementById('detail-timeline');
     timelineContainer.innerHTML = '';
     getComboItinerary(combo).forEach((step) => {
+        const stepLocation = String(step.location || '').trim();
+        const stepDirectionsButton = stepLocation ? `
+            <a href="${getGoogleMapsDirectionsUrl(stepLocation)}" target="_blank" rel="noopener noreferrer" class="shrink-0 inline-flex items-center gap-1.5 bg-white/10 hover:bg-rose-500 border border-white/10 hover:border-rose-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition">
+                <i class="fa-solid fa-location-arrow"></i>
+                Chỉ đường
+            </a>
+        ` : '';
+
         timelineContainer.innerHTML += `
             <div class="relative">
                 <div class="absolute -left-[33px] top-1 h-6 w-6 rounded-full btn-gradient border-4 border-[#0f0f13] shadow-[0_0_10px_rgba(244,63,94,0.6)]"></div>
                 <h5 class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-300 font-black text-xl mb-1">${step.time}</h5>
                 <p class="text-white font-bold text-lg mb-2">${step.activity}</p>
-                <div class="text-gray-400 text-sm flex items-start mt-2 bg-white/5 p-3 rounded-xl border border-white/5">
-                    <i class="fa-solid fa-map-pin mt-1 mr-2 text-gray-500"></i> 
-                    <span class="font-medium flex-1">${step.location}</span>
+                <div class="text-gray-400 text-sm flex items-start gap-3 mt-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                    <i class="fa-solid fa-map-pin mt-1 text-gray-500"></i> 
+                    <div class="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <span class="font-medium flex-1">${stepLocation || 'Chua cap nhat dia diem'}</span>
+                        ${stepDirectionsButton}
+                    </div>
                 </div>
             </div>
         `;
@@ -735,6 +804,14 @@ window.submitLead = async function() {
     }
 
     // Hiển thị giao diện Thành công
+    try {
+        await sendVoucherEmail(leadData, selectedCombo);
+        console.log("Email voucher da duoc gui qua EmailJS.");
+    } catch (e) {
+        console.error("Loi khi gui email voucher qua EmailJS: ", e);
+        alert("Voucher đã được tạo, nhưng email có thể chưa gửi được. Bạn hãy chụp lại mã voucher.");
+    }
+
     document.getElementById('success-user-name').innerText = name;
     document.getElementById('success-combo-title').innerText = selectedCombo.title;
     document.getElementById('success-voucher-code').innerText = leadData.code;
@@ -1020,6 +1097,12 @@ window.exportToCSV = function() {
 // KHỞI CHẠY CÁC HÀM UI CÒN LẠI KHI TẢI TRANG
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
+    if (window.emailjs) {
+        window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+    } else {
+        console.warn("EmailJS SDK chua san sang. Voucher van duoc tao, nhung email se khong gui duoc.");
+    }
+
     if(document.getElementById('combo-grid')) {
         window.renderCombos();
     }

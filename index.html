@@ -153,7 +153,7 @@
                     <span class="text-gradient">"Đi đâu cũng được"</span>
                 </h1>
                 <p class="mt-6 max-w-2xl text-gray-300 mx-auto text-lg md:text-xl mb-12 font-medium drop-shadow-md leading-relaxed">
-                    Khám phá 35+ lộ trình giải trí trọn gói tại TP.HCM. Chốt kèo nhanh chóng, nhận voucher ưu đãi demo từ địa điểm tham khảo!
+                    Khám phá 15+ lộ trình demo giải trí trọn gói tại TP.HCM. Chốt kèo nhanh chóng, nhận voucher ưu đãi demo từ địa điểm tham khảo!
                 </p>
                 <div class="flex justify-center gap-5 flex-wrap">
                     <a href="#mood-quiz-section" class="btn-gradient text-white font-extrabold py-4 px-10 rounded-full transition shadow-[0_0_30px_rgba(244,63,94,0.4)] hover:shadow-[0_0_40px_rgba(244,63,94,0.6)] hover:scale-105 flex items-center text-lg">
@@ -217,7 +217,7 @@
         <!-- KHÁM PHÁ (LIST ALL) -->
         <section id="combos" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-12">
-                <h2 class="text-4xl font-extrabold mb-4">Khám Phá Toàn Bộ <span class="text-primary">35+ Lộ Trình</span></h2>
+                <h2 class="text-4xl font-extrabold mb-4">Khám Phá Toàn Bộ <span class="text-primary">15+ Lộ Trình Demo</span></h2>
                 <p class="text-gray-400 text-lg">Đa dạng khu vực, đối tượng và ngân sách. Lựa chọn là ở bạn!</p>
             </div>
             <div class="flex flex-col lg:flex-row items-center justify-between gap-6 mb-16 glass-panel p-6 rounded-[2rem] shadow-2xl">
@@ -342,7 +342,8 @@
                     </div>
                 </div>
                 <div class="p-8 overflow-y-auto flex-1 custom-scrollbar bg-[#0f0f13]">
-                    <div id="detail-desc" class="text-gray-300 mb-8 flex items-start text-sm md:text-base border-b border-gray-800 pb-6 leading-relaxed font-medium"></div>
+                    <div id="detail-desc" class="text-gray-300 mb-8 flex items-start text-sm md:text-base leading-relaxed font-medium"></div>
+                    <div class="border-b border-gray-800 mb-8"></div>
                     <h4 class="font-extrabold text-xl mb-6 text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-purple-400 flex items-center uppercase tracking-wide"><i class="fa-solid fa-route text-rose-500 mr-3"></i> Lộ trình chi tiết</h4>
                     <div id="detail-timeline" class="border-l-2 border-gray-800 pl-6 ml-3 space-y-8"></div>
                 </div>
@@ -642,6 +643,7 @@
 
     <!-- Gọi file Dữ liệu vào trước -->
     <script src="data.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     
     <!-- Gọi file Logic vào sau để nó đọc dữ liệu -->
     <!-- Dùng type="module" nếu bên trong app.js có chứa code Firebase (import) -->

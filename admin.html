@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Planner | Admin Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { primary: '#f43f5e', darkbg: '#050505', cardbg: 'rgba(15, 15, 20, 0.7)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #050505; color: #f3f4f6; }
+        .btn-gradient { background-image: linear-gradient(to right, #f43f5e, #a855f7); background-size: 200% auto; transition: all 0.5s ease; }
+        .btn-gradient:hover { background-position: right center; box-shadow: 0 0 20px rgba(168, 85, 247, 0.5); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f43f5e; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f43f5e; border-radius: 4px; }
+    </style>
+</head>
+<body class="antialiased overflow-x-hidden">
+
+    <div id="admin-login-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center transition-opacity duration-300 px-4">
+        <div class="bg-[#0f0f13] border border-white/10 rounded-[2rem] max-w-sm w-full p-10 text-left shadow-[0_0_60px_rgba(0,0,0,0.8)] relative">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center mx-auto mb-5 border border-gray-600 shadow-xl"><i class="fa-solid fa-shield-halved text-3xl text-gray-300"></i></div>
+                <h3 class="text-3xl font-extrabold text-white mb-2 tracking-tight">Admin Portal</h3>
+                <p class="text-gray-400 text-sm font-medium">Khu vực dành riêng cho Đối tác B2B. Vui lòng nhập mã PIN bảo mật.</p>
+            </div>
+            <div class="space-y-5">
+                <div>
+                    <input type="password" id="admin-pin" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 text-center tracking-[0.5em] text-2xl font-black shadow-inner" placeholder="••••••">
+                    <p id="admin-error" class="text-rose-500 text-sm mt-3 hidden text-center font-bold bg-rose-500/10 py-2.5 rounded-xl border border-rose-500/20">Mã PIN không chính xác!</p>
+                </div>
+                <button onclick="window.verifyAdmin()" class="w-full bg-white text-black hover:bg-gray-200 font-black py-4.5 rounded-2xl transition mt-2 text-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] h-16">Đăng Nhập</button>
+                <div class="text-center mt-4">
+                    <a href="index.html" class="text-sm text-gray-500 hover:text-white transition">Quay lại trang chủ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-view" class="hidden min-h-screen bg-[#050505] text-gray-200 font-medium">
+        <nav class="bg-[#0f0f13] border-b border-white/5 p-4 sticky top-0 z-50 shadow-lg">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 btn-gradient rounded-xl flex items-center justify-center shadow-lg"><i class="fa-solid fa-chart-pie text-white text-xl"></i></div>
+                    <div>
+                        <h1 class="font-extrabold text-white text-lg leading-tight">Date Planner Portal</h1>
+                        <p class="text-[10px] text-rose-400 font-bold tracking-widest uppercase mt-0.5">Hệ thống Quản lý B2B</p>
+                    </div>
+                </div>
+                <button onclick="window.logoutAdmin()" class="bg-white/5 hover:bg-rose-500 hover:text-white hover:border-transparent border border-white/10 text-sm px-5 py-2.5 rounded-xl font-bold transition flex items-center"><i class="fa-solid fa-arrow-right-from-bracket mr-2"></i>Đăng xuất</button>
+            </div>
+        </nav>
+        
+        <div class="max-w-7xl mx-auto px-4 py-10">
+            <div class="mb-10">
+                <h2 class="text-3xl font-extrabold text-white mb-2">Tổng Quan Hiệu Quả (Dashboard)</h2>
+                <p class="text-gray-400">Báo cáo real-time về lượng người dùng và doanh thu hoa hồng từ Voucher.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+                <div class="bg-[#0f0f13] border border-white/5 p-8 rounded-3xl relative overflow-hidden shadow-xl">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Tổng lead lấy voucher</p>
+                    <h3 class="text-5xl font-black text-white mb-2" id="stat-leads">0</h3>
+                    <p class="text-sm text-green-400 font-bold"><i class="fa-solid fa-arrow-trend-up mr-1"></i> Cập nhật trực tiếp</p>
+                </div>
+                <div class="bg-[#0f0f13] border border-white/5 p-8 rounded-3xl relative overflow-hidden shadow-xl">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Voucher đã sử dụng</p>
+                    <h3 class="text-5xl font-black text-white mb-2" id="stat-vouchers">0</h3>
+                    <p class="text-sm text-gray-400 font-medium">Chỉ tính khi status = used</p>
+                </div>
+                <div class="bg-[#0f0f13] border border-white/5 p-8 rounded-3xl relative overflow-hidden shadow-xl">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Tỷ lệ chuyển đổi</p>
+                    <h3 class="text-5xl font-black text-white mb-2" id="stat-conversion">0%</h3>
+                    <p class="text-sm text-gray-400 font-medium">Used / tổng leads</p>
+                </div>
+                <div class="bg-[#0f0f13] border border-rose-500/30 p-8 rounded-3xl relative overflow-hidden shadow-[0_0_30px_rgba(244,63,94,0.1)]">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <p class="text-gray-300 text-xs font-bold uppercase tracking-widest mb-2">Doanh thu CPS/CPA</p>
+                    <h3 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400 mb-2" id="stat-revenue">0đ</h3>
+                    <p class="text-sm text-gray-400 font-medium">Hoa hồng: <span class="text-white bg-white/10 px-2.5 py-1 rounded-md ml-1 font-bold">Commission động theo tầng đối tác/voucher used</span></p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-[#0f0f13] border border-white/5 rounded-3xl flex flex-col h-[650px] shadow-xl overflow-hidden">
+                    <div class="p-6 border-b border-gray-800 flex flex-wrap gap-4 justify-between items-center bg-[#171717]">
+                        <h3 class="font-bold text-xl text-white"><i class="fa-solid fa-database text-blue-400 mr-2"></i>Dữ Liệu Khách Hàng</h3>
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <select id="admin-partner-filter" onchange="window.renderAdminData()" class="bg-[#0a0a0a] text-white border border-gray-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-rose-500 appearance-none pr-10 text-sm font-bold hover:bg-gray-900 transition shadow-inner">
+                                    <option value="all">Tất cả Đối tác</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"><i class="fa-solid fa-chevron-down text-xs"></i></div>
+                            </div>
+                            <button onclick="window.exportToCSV()" class="bg-green-500 text-white hover:bg-green-600 px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-lg flex items-center"><i class="fa-solid fa-file-excel mr-2"></i> Xuất báo cáo đối soát CSV</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto custom-scrollbar p-0 bg-[#0a0a0a]">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-[#111115] sticky top-0 text-gray-400 border-b border-gray-800 z-10">
+                                <tr>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px]">Khách hàng</th>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px]">Liên hệ</th>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px]">Lộ trình & Đối tác</th>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px]">Mã VC & Ngày</th>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px]">Commission</th>
+                                    <th class="px-6 py-5 font-bold uppercase tracking-widest text-[10px] text-rose-400">Trạng thái (Thu ngân)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leads-table-body" class="divide-y divide-gray-800/50"></tbody>
+                        </table>
+                        <div id="no-data-msg" class="text-center py-28 text-gray-500 hidden">
+                            <i class="fa-regular fa-folder-open text-6xl mb-4 opacity-20"></i>
+                            <p class="text-lg font-medium">Không có dữ liệu cho đối tác này.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-[#0f0f13] border border-white/5 rounded-3xl p-8 shadow-xl">
+                    <h3 class="font-extrabold text-xl text-white mb-8 border-b border-gray-800 pb-4"><i class="fa-solid fa-handshake text-yellow-500 mr-2"></i>Quy Trình Quản Trị B2B</h3>
+                    <div class="mb-8 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-wider">
+                        <span class="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 px-2 py-1 rounded"><i class="fa-solid fa-clock mr-1"></i>Pending</span>
+                        <span class="bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded"><i class="fa-solid fa-check-circle mr-1"></i>Used</span>
+                        <span class="bg-gray-500/20 text-gray-300 border border-gray-500/30 px-2 py-1 rounded"><i class="fa-solid fa-hourglass-end mr-1"></i>Expired</span>
+                        <span class="bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-1 rounded"><i class="fa-solid fa-ban mr-1"></i>Cancelled</span>
+                    </div>
+                    <div class="relative border-l-2 border-rose-500/50 pl-6 ml-3 space-y-10">
+                        <div class="relative">
+                            <div class="absolute -left-[35px] top-0 h-5 w-5 rounded-full bg-[#0f0f13] border-[3px] border-rose-500"></div>
+                            <h4 class="text-white font-bold text-base mb-1">1. Gửi Link Admin</h4>
+                            <p class="text-sm text-gray-400 leading-relaxed">Cung cấp đường link này và Mã PIN bảo mật cho Đối tác để họ tự truy cập.</p>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute -left-[35px] top-0 h-5 w-5 rounded-full bg-[#0f0f13] border-[3px] border-rose-500"></div>
+                            <h4 class="text-white font-bold text-base mb-1">2. Lọc & Xác Nhận Mã</h4>
+                            <p class="text-sm text-gray-400 leading-relaxed">Khi khách mang Voucher đến quán, Thu ngân tìm tên khách hàng và bấm "Xác nhận mã".</p>
+                        </div>
+                        <div class="relative">
+                            <div class="absolute -left-[35px] top-0 h-5 w-5 rounded-full bg-[#0f0f13] border-[3px] border-rose-500"></div>
+                            <h4 class="text-white font-bold text-base mb-1">3. Trích xuất & Đối soát</h4>
+                            <p class="text-sm text-gray-400 leading-relaxed">Hệ thống chỉ ghi nhận doanh thu từ voucher có status = used, theo commission snapshot động đã lưu trên từng lead. Cuối tháng xuất báo cáo đối soát CSV để chốt thanh toán.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    
+    <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -71,8 +71,34 @@ const LOCAL_FALLBACK_IMAGE = (title = 'DatePlanner') => {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
+function getFallbackImageSrc(title = 'DatePlanner') {
+    return typeof window.getDatePlannerFallbackImage === 'function'
+        ? window.getDatePlannerFallbackImage(title)
+        : LOCAL_FALLBACK_IMAGE(title);
+}
+
+window.handleImageFallback = window.handleImageFallback || function(img) {
+    if (!img) return;
+    img.onerror = null;
+    img.src = getFallbackImageSrc(img.alt || 'DatePlanner');
+};
+
+function getImageAttrs() {
+    return 'loading="lazy" decoding="async" onerror="window.handleImageFallback(this)"';
+}
+
+function applyLocalComboImages() {
+    if (typeof localComboImages === 'undefined' || !Array.isArray(combos)) return;
+
+    combos.forEach((combo) => {
+        if (localComboImages[combo.id]) {
+            combo.img = localComboImages[combo.id];
+        }
+    });
+}
+
 function getComboImage(combo) {
-    return combo?.img || LOCAL_FALLBACK_IMAGE(combo?.title);
+    return combo?.img || getFallbackImageSrc(combo?.title);
 }
 
 function getComboItinerary(combo) {
@@ -98,6 +124,93 @@ function getGoogleMapsDirectionsUrl(location) {
 }
 
 window.getGoogleMapsDirectionsUrl = getGoogleMapsDirectionsUrl;
+
+function formatComboPrice(combo) {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number(combo?.price || 0));
+}
+
+function getComboArea(combo) {
+    const address = String(combo?.address || 'TP.HCM');
+    const parts = address.split(',').map(part => part.trim()).filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 1] : address;
+}
+
+function getTargetLabel(combo) {
+    if (combo?.target === 'couple') return 'Cặp đôi';
+    if (combo?.target === 'group') return 'Hội nhóm';
+    return 'Linh hoạt';
+}
+
+function getComboAccentClass(combo) {
+    if (combo?.category === 'high') return 'accent-premium';
+    if (combo?.category === 'mid') return 'accent-mid';
+    if (combo?.target === 'group') return 'accent-group';
+    return 'accent-budget';
+}
+
+function getComboTypeBadge(combo) {
+    if (combo?.target === 'group') {
+        return '<span class="text-xs text-violet-100 bg-violet-500/15 border border-violet-400/25 px-2.5 py-1 rounded-full font-bold shrink-0">Hội nhóm</span>';
+    }
+    if (combo?.category === 'high') {
+        return '<span class="text-xs text-rose-100 bg-rose-500/15 border border-rose-400/25 px-2.5 py-1 rounded-full font-bold shrink-0">Cao cấp</span>';
+    }
+    if (combo?.category === 'mid') {
+        return '<span class="text-xs text-orange-100 bg-orange-500/15 border border-orange-400/25 px-2.5 py-1 rounded-full font-bold shrink-0">Tiêu chuẩn</span>';
+    }
+    return '<span class="text-xs text-cyan-100 bg-cyan-500/15 border border-cyan-400/25 px-2.5 py-1 rounded-full font-bold shrink-0">Bình dân</span>';
+}
+
+function getMoodReason(moodType) {
+    const reasons = {
+        chill: 'Hợp cho một buổi đi chậm, ít phải lên kế hoạch.',
+        active: 'Có hoạt động để cả nhóm dễ vào mood ngay.',
+        romantic: 'Không gian vừa đủ riêng tư, lịch trình không quá dày.',
+        fun: 'Dễ rủ đông người và ít rủi ro hụt hứng.'
+    };
+    return reasons[moodType] || 'Lộ trình cân bằng giữa ngân sách, khu vực và trải nghiệm.';
+}
+
+function getMoodTheme(moodType) {
+    const themes = {
+        chill: {
+            resultBorder: 'border-sky-400/35',
+            badge: 'bg-sky-400/15 text-sky-200 border border-sky-400/25',
+            icon: 'text-sky-300',
+            cta: 'bg-sky-400 text-[#061018] hover:bg-sky-300 focus-visible:ring-sky-300'
+        },
+        active: {
+            resultBorder: 'border-orange-400/35',
+            badge: 'bg-orange-400/15 text-orange-200 border border-orange-400/25',
+            icon: 'text-orange-300',
+            cta: 'bg-orange-400 text-[#160b05] hover:bg-orange-300 focus-visible:ring-orange-300'
+        },
+        romantic: {
+            resultBorder: 'border-rose-400/35',
+            badge: 'bg-rose-400/15 text-rose-200 border border-rose-400/25',
+            icon: 'text-rose-300',
+            cta: 'primary-action text-white'
+        },
+        fun: {
+            resultBorder: 'border-violet-400/35',
+            badge: 'bg-violet-400/15 text-violet-200 border border-violet-400/25',
+            icon: 'text-violet-300',
+            cta: 'bg-violet-400 text-white hover:bg-violet-300 focus-visible:ring-violet-300'
+        }
+    };
+    return themes[moodType] || themes.romantic;
+}
+
+function getTrendingRankClass(index) {
+    const rankClasses = [
+        'bg-gradient-to-r from-amber-300 to-rose-500 text-[#160B05] border border-amber-200/60',
+        'bg-orange-400 text-[#170B05] border border-orange-200/50',
+        'bg-violet-500 text-white border border-violet-300/40',
+        'bg-slate-600 text-white border border-slate-400/25',
+        'bg-gray-700 text-gray-100 border border-gray-500/25'
+    ];
+    return rankClasses[index] || rankClasses[4];
+}
 
 function getInflationFactor() {
     const currentYear = new Date().getFullYear();
@@ -303,6 +416,7 @@ window.toggleMusic = function() {
 // ==========================================
 // 3. BẮT MẠCH CẢM XÚC (MOOD QUIZ)
 // ==========================================
+
 window.renderTrendingCombos = function() {
     const grid = document.getElementById('trending-grid');
     if (!grid) return;
@@ -311,25 +425,45 @@ window.renderTrendingCombos = function() {
         .sort((a, b) => Number(b.bookings || 0) - Number(a.bookings || 0))
         .slice(0, 5);
 
-    grid.innerHTML = trendingCombos.map((combo, index) => `
-        <article class="combo-card trending-card snap-start rounded-3xl overflow-hidden group">
-            <div class="h-52 relative overflow-hidden cursor-pointer" onclick="window.openComboDetail(${combo.id})">
-                <img src="${getComboImage(combo)}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-700 group-hover:scale-110" alt="${combo.title}">
-                <div class="absolute top-4 left-4 ${index === 0 ? 'top-1-glow bg-yellow-400 text-black' : 'btn-gradient text-white'} font-black px-4 py-2 rounded-xl shadow-lg text-sm z-10">#${index + 1} Trending</div>
-                <div class="absolute inset-0 bg-gradient-to-t from-[#0f0f13] via-transparent to-transparent"></div>
-            </div>
-            <div class="p-6 bg-[#111115]/95">
-                <div class="flex items-center justify-between gap-3 mb-3">
-                    <h3 class="text-2xl font-extrabold text-white leading-tight">${combo.title}</h3>
-                    <span class="text-xs text-orange-300 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full font-black">${combo.bookings || 0} lượt</span>
+    grid.innerHTML = trendingCombos.map((combo, index) => {
+        const rank = index + 1;
+        const isTop = rank === 1;
+        const interestCount = Number(combo.bookings || 0);
+
+        return `
+            <article class="trending-card ${isTop ? 'rank-1' : ''} snap-start rounded-[1.7rem] overflow-hidden group relative" tabindex="0">
+                <div class="relative h-[25rem] md:h-[28rem] overflow-hidden cursor-pointer" onclick="window.openComboDetail(${combo.id})">
+                    <img src="${getComboImage(combo)}" class="w-full h-full object-cover opacity-95 group-hover:opacity-100" alt="${combo.title}" ${getImageAttrs()}>
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/44 to-transparent"></div>
+                    <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/55 to-transparent"></div>
+                    <div class="absolute top-5 left-5 right-5 flex items-start justify-between gap-4 z-10">
+                        <span class="trending-badge inline-flex items-center gap-2 bg-white/10 border border-white/15 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.18em]">
+                            <i class="fa-solid fa-fire text-orange-300"></i>Trending
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 bg-black/45 border border-white/15 backdrop-blur-md text-amber-100 px-3 py-1.5 rounded-full text-xs font-black">
+                            <i class="fa-solid fa-users"></i>${interestCount} luot
+                        </span>
+                    </div>
+                    <div class="absolute left-5 bottom-5 right-5 z-10">
+                        <div class="trending-rank ${isTop ? 'text-amber-200' : 'text-white/88'} font-black mb-5">#${rank}</div>
+                        <p class="text-sm text-zinc-300 mb-2 font-bold">${getComboArea(combo)} / ${getTargetLabel(combo)}</p>
+                        <h3 class="trending-title card-title text-3xl md:text-4xl font-black text-white leading-[0.98] tracking-tight">${combo.title}</h3>
+                    </div>
                 </div>
-                <p class="text-gray-400 text-sm leading-relaxed line-clamp-2 mb-4">${combo.desc}</p>
-                <button onclick="window.openComboDetail(${combo.id})" class="w-full bg-white/10 hover:bg-rose-500 border border-white/20 text-white px-5 py-3 rounded-xl text-sm font-bold transition">
-                    <i class="fa-solid fa-eye mr-2"></i>Xem chi tiết
-                </button>
-            </div>
-        </article>
-    `).join('');
+                <div class="p-5 bg-[#111118]/96 border-t border-white/10">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-black mb-1">Gia du kien</p>
+                            <span class="text-2xl font-black text-white">${formatComboPrice(combo)}</span>
+                        </div>
+                        <button onclick="window.openComboDetail(${combo.id})" class="interactive-btn ${isTop ? 'primary-action' : 'secondary-action'} px-5 py-3 rounded-xl text-sm font-black shrink-0">
+                            Xem chi tiet
+                        </button>
+                    </div>
+                </div>
+            </article>
+        `;
+    }).join('');
 };
 
 window.initTrendingAutoScroll = function() {
@@ -394,7 +528,7 @@ window.initTrendingAutoScroll = function() {
     let lastFrameTime = performance.now();
     let isPaused = false;
     let resumeTimer = null;
-    const speed = 0.028;
+    const speed = 0.018;
 
     const recalculateLoopWidth = () => {
         firstClone = grid.querySelector('[data-trending-clone="true"]');
@@ -461,7 +595,7 @@ window.startRandomizer = function() {
     const ticker = setInterval(() => {
         const combo = combos[Math.floor(Math.random() * combos.length)];
         result.innerText = combo.title;
-        result.classList.remove('text-gray-500');
+        result.classList.remove('text-gray-500', 'text-zinc-400');
         result.classList.add('text-white');
         ticks += 1;
 
@@ -470,14 +604,17 @@ window.startRandomizer = function() {
             const selected = combos[Math.floor(Math.random() * combos.length)];
             result.innerText = selected.title;
             details.innerHTML = `
-                <div class="animate-fade-in-up text-left grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5 items-center">
-                    <img src="${getComboImage(selected)}" class="w-full h-36 md:h-32 object-cover rounded-2xl border border-white/10" alt="${selected.title}">
+                <div class="animate-fade-in-up text-left grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5 items-center">
+                    <img src="${getComboImage(selected)}" class="w-full h-44 md:h-36 object-cover rounded-2xl border border-orange-500/20" alt="${selected.title}" ${getImageAttrs()}>
                     <div>
-                        <p class="text-gray-300 mb-3 leading-relaxed">${selected.desc}</p>
-                        <p class="text-sm text-gray-400 mb-4"><i class="fa-solid fa-location-dot text-rose-400 mr-2"></i>${selected.address || 'TP.HCM'}</p>
-                        <button onclick="window.openComboDetail(${selected.id})" class="btn-gradient text-white font-extrabold py-3 px-6 rounded-xl transition shadow-lg">
-                            <i class="fa-solid fa-eye mr-2"></i>Xem lộ trình này
-                        </button>
+                        <p class="text-sm text-zinc-400 mb-1">${getComboArea(selected)} · ${getTargetLabel(selected)}</p>
+                        <p class="text-zinc-300 mb-4 leading-relaxed">Một gợi ý nhanh dựa trên danh sách lộ trình DatePlanner.</p>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-xl font-black text-white">${formatComboPrice(selected)}</span>
+                            <button onclick="window.openComboDetail(${selected.id})" class="interactive-btn primary-action font-black py-3 px-5 rounded-xl">
+                                Xem lộ trình
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -498,7 +635,7 @@ window.populateInviteCombos = function() {
 
 window.updateInvitePreview = function() {
     const name = document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...';
-    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đu đưa cùng tớ nhé!';
+    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
     const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
     const combo = combos.find(item => item.id === comboId) || combos[0];
 
@@ -538,8 +675,350 @@ window.copyInviteText = async function() {
     }
 
     setTimeout(() => {
-        if (button) button.innerHTML = '<i class="fa-regular fa-copy mr-2"></i> Sao Chép Thiệp Mời';
+        if (button) button.innerHTML = '<i class="fa-regular fa-copy mr-2"></i> Sao chép lời mời';
     }, 1800);
+};
+
+function formatInviteDate(value) {
+    if (!value) return 'Chọn thời gian hẹn';
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'Chọn thời gian hẹn';
+    return date.toLocaleString('vi-VN', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function getSelectedInviteCombo() {
+    const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
+    return combos.find(item => item.id === comboId) || combos[0];
+}
+
+function setInviteButtonLoading(button, isLoading, loadingText) {
+    if (!button) return;
+    if (isLoading) {
+        button.dataset.originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-not-allowed');
+        button.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>${loadingText}`;
+        return;
+    }
+
+    button.disabled = false;
+    button.classList.remove('opacity-60', 'cursor-not-allowed');
+    if (button.dataset.originalHtml) {
+        button.innerHTML = button.dataset.originalHtml;
+        delete button.dataset.originalHtml;
+    }
+}
+
+function showInviteToast(message = 'Đã copy lời mời ✨') {
+    const toast = document.getElementById('invite-toast');
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+window.currentInviteCardMode = 'story';
+
+window.setInviteCardMode = function(mode = 'story') {
+    const normalizedMode = mode === 'square' ? 'square' : 'story';
+    const card = document.getElementById('invite-card-preview');
+    window.currentInviteCardMode = normalizedMode;
+
+    if (card) {
+        card.dataset.mode = normalizedMode;
+        card.classList.toggle('is-square', normalizedMode === 'square');
+        card.classList.toggle('is-story', normalizedMode === 'story');
+    }
+
+    document.getElementById('invite-mode-story')?.classList.toggle('active', normalizedMode === 'story');
+    document.getElementById('invite-mode-square')?.classList.toggle('active', normalizedMode === 'square');
+};
+
+window.updateInvitePreview = function() {
+    const name = document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...';
+    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
+    const combo = getSelectedInviteCombo();
+    const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
+    const background = document.getElementById('inv-card-bg');
+    const card = document.getElementById('invite-card-preview');
+
+    if (document.getElementById('prev-name')) document.getElementById('prev-name').innerText = combo?.title || 'DatePlanner Invite';
+    if (document.getElementById('prev-message')) document.getElementById('prev-message').innerText = `"${message}"`;
+    if (document.getElementById('prev-combo-title')) document.getElementById('prev-combo-title').innerText = `Gửi đến ${name}`;
+    if (document.getElementById('prev-combo-address')) document.getElementById('prev-combo-address').innerHTML = `<i class="fa-solid fa-location-dot text-rose-300 mr-2"></i>${combo?.address || 'Địa điểm sẽ hiển thị ở đây'}`;
+    if (document.getElementById('prev-date')) document.getElementById('prev-date').innerText = inviteDate;
+    if (background && combo) {
+        background.crossOrigin = 'anonymous';
+        background.src = getComboImage(combo);
+        background.alt = combo.title;
+    }
+    card?.classList.toggle('is-long-message', message.length > 96);
+};
+
+window.copyInviteText = async function() {
+    const name = document.getElementById('inv-name')?.value.trim() || 'bạn';
+    const message = document.getElementById('inv-message')?.value.trim() || '';
+    const combo = getSelectedInviteCombo();
+    const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
+    const timeLine = inviteDate === 'Chọn thời gian hẹn' ? '' : `\nThời gian: ${inviteDate}`;
+    const text = `${name} ơi, ${message}\nLộ trình: ${combo?.title || 'DatePlanner'}\nĐịa điểm: ${combo?.address || 'TP.HCM'}${timeLine}`;
+    const button = document.getElementById('copy-inv-btn');
+
+    try {
+        await navigator.clipboard.writeText(text);
+        if (button) button.innerHTML = '<i class="fa-solid fa-check mr-2"></i>Đã copy';
+        showInviteToast('Đã copy lời mời ✨');
+    } catch (error) {
+        console.error(error);
+        alert(text);
+    }
+
+    setTimeout(() => {
+        if (button) button.innerHTML = '<i class="fa-regular fa-copy mr-2"></i> Copy lời mời';
+    }, 1800);
+};
+
+function loadInviteCanvasImage(src) {
+    return new Promise((resolve) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.onload = () => resolve(image);
+        image.onerror = () => resolve(null);
+        image.src = src;
+    });
+}
+
+function drawInviteWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+
+    words.forEach((word) => {
+        const testLine = line ? `${line} ${word}` : word;
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = testLine;
+        }
+    });
+    if (line) lines.push(line);
+
+    lines.slice(0, maxLines).forEach((textLine, index) => {
+        const output = index === maxLines - 1 && lines.length > maxLines ? `${textLine}...` : textLine;
+        ctx.fillText(output, x, y + index * lineHeight);
+    });
+
+    return Math.min(lines.length, maxLines) * lineHeight;
+}
+
+function drawInviteRoundRect(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+}
+
+async function generateInviteCanvasFallback() {
+    const combo = getSelectedInviteCombo();
+    const name = document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...';
+    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
+    const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
+    const isSquare = (document.getElementById('invite-card-preview')?.dataset.mode || window.currentInviteCardMode) === 'square';
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = isSquare ? 1080 : 1920;
+    const ctx = canvas.getContext('2d');
+    const bgImage = await loadInviteCanvasImage(getComboImage(combo));
+
+    if (bgImage) {
+        const scale = Math.max(canvas.width / bgImage.width, canvas.height / bgImage.height);
+        const width = bgImage.width * scale;
+        const height = bgImage.height * scale;
+        ctx.drawImage(bgImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    } else {
+        const fallbackGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        fallbackGradient.addColorStop(0, '#26101c');
+        fallbackGradient.addColorStop(0.5, '#111827');
+        fallbackGradient.addColorStop(1, '#2b1208');
+        ctx.fillStyle = fallbackGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    const overlay = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    overlay.addColorStop(0, 'rgba(5,5,8,0.36)');
+    overlay.addColorStop(0.36, 'rgba(5,5,8,0.24)');
+    overlay.addColorStop(1, 'rgba(5,5,8,0.9)');
+    ctx.fillStyle = overlay;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const glowRose = ctx.createRadialGradient(860, 280, 10, 860, 280, 360);
+    glowRose.addColorStop(0, 'rgba(244,63,94,0.62)');
+    glowRose.addColorStop(1, 'rgba(244,63,94,0)');
+    ctx.fillStyle = glowRose;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const glowOrange = ctx.createRadialGradient(140, isSquare ? 880 : 1560, 10, 140, isSquare ? 880 : 1560, 430);
+    glowOrange.addColorStop(0, 'rgba(251,146,60,0.46)');
+    glowOrange.addColorStop(1, 'rgba(251,146,60,0)');
+    ctx.fillStyle = glowOrange;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    drawInviteRoundRect(ctx, 72, 78, 334, 86, 43);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 27px Inter, Arial, sans-serif';
+    ctx.fillText('DATE PLANNER', 154, 132);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(113, 121, 30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f43f5e';
+    ctx.font = '900 28px Inter, Arial, sans-serif';
+    ctx.fillText('DP', 92, 131);
+
+    const dateY = isSquare ? 398 : 1110;
+    const labelY = isSquare ? 500 : 1246;
+    const titleY = isSquare ? 592 : 1338;
+    const messageY = isSquare ? 718 : 1480;
+    const routeY = isSquare ? 872 : 1660;
+    const ctaY = isSquare ? 1000 : 1848;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    drawInviteRoundRect(ctx, 72, dateY, 420, 66, 33);
+    ctx.fill();
+    ctx.fillStyle = '#fed7aa';
+    ctx.font = '800 28px Inter, Arial, sans-serif';
+    ctx.fillText(inviteDate, 112, dateY + 43);
+
+    ctx.fillStyle = '#fecdd3';
+    ctx.font = '900 24px Inter, Arial, sans-serif';
+    ctx.fillText('DATE PLANNER INVITE', 72, labelY);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = isSquare ? '900 70px Inter, Arial, sans-serif' : '900 82px Inter, Arial, sans-serif';
+    drawInviteWrappedText(ctx, combo?.title || 'DatePlanner Invite', 72, titleY, 900, isSquare ? 74 : 86, 2);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = isSquare ? '700 italic 38px Inter, Arial, sans-serif' : '700 italic 48px Inter, Arial, sans-serif';
+    drawInviteWrappedText(ctx, `"${message}"`, 72, messageY, 900, isSquare ? 48 : 60, isSquare ? 2 : 3);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.13)';
+    drawInviteRoundRect(ctx, 72, routeY, 936, isSquare ? 86 : 164, 34);
+    ctx.fill();
+    ctx.fillStyle = '#fed7aa';
+    ctx.font = '900 24px Inter, Arial, sans-serif';
+    ctx.fillText('GỬI ĐẾN', 112, routeY + 45);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 42px Inter, Arial, sans-serif';
+    drawInviteWrappedText(ctx, name, 260, routeY + 45, 650, 48, 1);
+
+    ctx.fillStyle = '#000000';
+    drawInviteRoundRect(ctx, 72, ctaY, 520, 56, 28);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 24px Inter, Arial, sans-serif';
+    ctx.fillText('Ready for our next adventure?', 108, ctaY + 37);
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) reject(new Error('Cannot create invite PNG.'));
+            else resolve(blob);
+        }, 'image/png', 1);
+    });
+}
+
+window.generateInviteImage = async function() {
+    const card = document.getElementById('invite-card-preview');
+    if (!card) throw new Error('Invite preview is missing.');
+    if (!window.html2canvas) return generateInviteCanvasFallback();
+
+    const bg = document.getElementById('inv-card-bg');
+    if (bg && !bg.complete) {
+        await new Promise(resolve => {
+            bg.onload = resolve;
+            bg.onerror = resolve;
+        });
+    }
+
+    const canvas = await window.html2canvas(card, {
+        backgroundColor: null,
+        useCORS: true,
+        allowTaint: false,
+        scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+        width: card.offsetWidth,
+        height: card.offsetHeight,
+        windowWidth: document.documentElement.clientWidth,
+        windowHeight: document.documentElement.clientHeight
+    });
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) reject(new Error('Cannot create invite PNG.'));
+            else resolve(blob);
+        }, 'image/png', 1);
+    });
+};
+
+window.downloadInviteImage = async function() {
+    const button = document.getElementById('download-inv-btn');
+    try {
+        setInviteButtonLoading(button, true, 'Đang lưu');
+        const blob = await window.generateInviteImage();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'dateplanner-invite.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showInviteToast('Đã tạo ảnh PNG ✨');
+    } catch (error) {
+        console.error(error);
+        alert('Chưa thể tạo ảnh PNG. Vui lòng tải lại trang và thử lại.');
+    } finally {
+        setInviteButtonLoading(button, false);
+    }
+};
+
+window.shareInviteImage = async function() {
+    const button = document.getElementById('share-inv-btn');
+    try {
+        setInviteButtonLoading(button, true, 'Đang chia sẻ');
+        const blob = await window.generateInviteImage();
+        const file = new File([blob], 'dateplanner-invite.png', { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: 'DatePlanner E-card',
+                text: 'Ready for our next adventure?',
+                files: [file]
+            });
+            showInviteToast('Đã mở chia sẻ ✨');
+        } else {
+            await window.downloadInviteImage();
+        }
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            console.error(error);
+            await window.downloadInviteImage();
+        }
+    } finally {
+        setInviteButtonLoading(button, false);
+    }
 };
 
 window.toggleChatbot = function() {
@@ -592,7 +1071,27 @@ window.sendQuickReply = function(text) {
     window.handleChatbotSend();
 };
 
+window.createInviteFromMoodCombo = function(comboId) {
+    const comboSelect = document.getElementById('inv-combo');
+    if (comboSelect) {
+        comboSelect.value = String(comboId);
+        comboSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (typeof window.updateInvitePreview === 'function') {
+        window.updateInvitePreview();
+    }
+
+    const inviteSection = document.getElementById('invite-maker');
+    if (inviteSection) {
+        inviteSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+};
+
 window.getMoodRecommendation = function(moodType) {
+    document.querySelectorAll('.mood-card').forEach(card => card.classList.remove('is-selected', 'active'));
+    document.querySelectorAll(`button[onclick*="'${moodType}'"]`).forEach(card => {
+        if (card.classList.contains('mood-card')) card.classList.add('is-selected', 'active');
+    });
+
     let matchedCombos = [];
     if (moodType === 'chill') matchedCombos = combos.filter(c => c.id === 1 || c.id === 21 || c.id === 23 || c.id === 30 || c.id === 9 || c.id === 31);
     else if (moodType === 'active') matchedCombos = combos.filter(c => c.id === 6 || c.id === 11 || c.id === 20 || c.id === 28 || c.id === 35);
@@ -602,28 +1101,47 @@ window.getMoodRecommendation = function(moodType) {
     if (matchedCombos.length === 0) matchedCombos = combos;
     const randomCombo = matchedCombos[Math.floor(Math.random() * matchedCombos.length)];
     const container = document.getElementById('mood-result-container');
-    
+    const moodTheme = getMoodTheme(moodType);
+    if (!container) return;
+
+    clearTimeout(window.moodResultTimer);
+    container.classList.remove('hidden');
     container.innerHTML = `
-        <div class="glass-panel p-2 rounded-[2.5rem] shadow-[0_0_40px_rgba(168,85,247,0.3)] mt-8 animate-fade-in-up border border-purple-500/30">
-            <div class="bg-[#0f0f13] rounded-[2.2rem] p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center text-left">
-                <div class="w-full md:w-1/2 h-56 rounded-3xl overflow-hidden relative shadow-lg">
-                    <img src="${getComboImage(randomCombo)}" class="w-full h-full object-cover">
-                    <div class="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-orange-500 text-white font-black px-3 py-1 rounded-lg shadow-lg text-sm z-10 transform -rotate-2">Giảm ${randomCombo.discount}</div>
-                </div>
-                <div class="w-full md:w-1/2">
-                    <span class="text-xs font-bold text-purple-400 uppercase tracking-widest block mb-2"><i class="fa-solid fa-bolt text-yellow-500 mr-1"></i> Bộ gợi ý DatePlanner đề xuất</span>
-                    <h3 class="text-3xl font-black text-white mb-3 leading-tight">${randomCombo.title}</h3>
-                    <p class="text-gray-400 mb-4 font-medium"><i class="fa-solid fa-list-check text-rose-400 mr-2"></i>${randomCombo.desc}</p>
-                    <p class="text-gray-300 text-sm mb-6 bg-white/5 p-3 rounded-xl border border-white/10"><i class="fa-solid fa-location-dot mr-2 text-rose-400"></i>${randomCombo.address}</p>
-                    <div class="flex gap-4">
-                        <button onclick="window.openComboDetail(${randomCombo.id})" class="btn-gradient text-white font-extrabold py-3 px-8 rounded-xl transition shadow-[0_0_20px_rgba(244,63,94,0.4)] flex-1 text-center"><i class="fa-solid fa-eye mr-2"></i>Xem Lộ Trình Này</button>
+        <div class="mood-loading rounded-[1.75rem] mt-8 p-6 md:p-8 flex items-center justify-center gap-4 text-white font-black">
+            <span>&#272;ang b&#7855;t s&#243;ng vibe</span>
+            <span class="inline-flex items-center gap-1.5" aria-hidden="true"><span class="mood-dot"></span><span class="mood-dot"></span><span class="mood-dot"></span></span>
+        </div>
+    `;
+    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    window.moodResultTimer = setTimeout(() => {
+        container.innerHTML = `
+            <div class="mood-result-hero ${moodTheme.resultBorder} rounded-[2rem] mt-8 overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr] items-stretch text-left">
+                    <div class="mood-result-media min-h-[330px] lg:min-h-[520px] overflow-hidden relative">
+                        <img src="${getComboImage(randomCombo)}" class="w-full h-full object-cover" alt="${randomCombo.title}" ${getImageAttrs()}>
+                        <div class="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/22 to-transparent"></div>
+                        <div class="absolute top-5 left-5 primary-action font-black px-4 py-2 rounded-full text-xs z-10">Voucher ${randomCombo.discount}</div>
+                    </div>
+                    <div class="p-6 md:p-9 lg:p-10 flex flex-col justify-center">
+                        <span class="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-widest mb-5 ${moodTheme.badge} px-4 py-2 rounded-full">
+                            <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>Date Planner &#273;&#7873; xu&#7845;t
+                        </span>
+                        <h3 class="text-4xl md:text-5xl font-black text-white mb-4 leading-[0.98] tracking-tight">${randomCombo.title}</h3>
+                        <p class="text-zinc-300 mb-6 font-semibold leading-relaxed">${randomCombo.desc || getMoodReason(moodType)}</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 text-sm text-zinc-200">
+                            <span class="mood-result-pill px-4 py-3 rounded-2xl"><i class="fa-solid fa-location-dot mr-2 ${moodTheme.icon}"></i>${randomCombo.address || getComboArea(randomCombo)}</span>
+                            <span class="mood-result-pill px-4 py-3 rounded-2xl font-black text-white"><i class="fa-solid fa-tag mr-2 ${moodTheme.icon}"></i>${formatComboPrice(randomCombo)}</span>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button onclick="window.openComboDetail(${randomCombo.id})" class="interactive-btn ${moodTheme.cta} font-black py-4 px-6 rounded-2xl flex-1 text-center">Xem l&#7897; tr&#236;nh</button>
+                            <button onclick="window.createInviteFromMoodCombo(${randomCombo.id})" class="interactive-btn secondary-action font-black py-4 px-6 rounded-2xl flex-1 text-center">T&#7841;o thi&#7879;p m&#7901;i t&#7915; combo n&#224;y</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
-    container.classList.remove('hidden');
-    setTimeout(() => { container.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+        `;
+    }, 650);
 };
 
 // ==========================================
@@ -646,43 +1164,74 @@ window.renderCombos = function() {
         let matchDist = window.currentDistrictFilter === 'all' ? true : c.district === window.currentDistrictFilter;
         return matchCat && matchDist;
     });
+    const summary = document.getElementById('combo-count-summary');
+    if (summary) {
+        summary.innerHTML = `<i class="fa-solid fa-layer-group mr-2 text-cyan-300"></i>Đang hiển thị ${filtered.length} lộ trình phù hợp`;
+    }
     
     if(filtered.length === 0) {
         comboGrid.innerHTML = `
             <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-20 bg-white/5 rounded-3xl border border-white/10 border-dashed backdrop-blur-sm">
                 <i class="fa-regular fa-face-frown-open text-6xl text-gray-600 mb-5"></i>
                 <h3 class="text-2xl font-bold text-white mb-2">Tiếc quá, chưa tìm thấy lộ trình phù hợp!</h3>
-                <button onclick="window.resetFilters()" class="mt-6 text-rose-400 hover:text-rose-300 font-bold underline transition">Xóa bộ lọc</button>
+                <button onclick="window.resetFilters()" class="interactive-btn secondary-action mt-6 px-5 py-2.5 rounded-full font-bold">Xóa bộ lọc</button>
             </div>
         `;
         return;
     }
 
     filtered.forEach(combo => {
-        let targetBadge = combo.target === 'couple' ? '<span class="text-rose-300 border border-rose-900 bg-rose-900/40 px-2.5 py-0.5 rounded-full text-[10px] ml-2 font-bold tracking-wider uppercase"><i class="fa-solid fa-heart mr-1"></i> Cặp đôi</span>' :
-                          combo.target === 'group' ? '<span class="text-blue-300 border border-blue-900 bg-blue-900/40 px-2.5 py-0.5 rounded-full text-[10px] ml-2 font-bold tracking-wider uppercase"><i class="fa-solid fa-users mr-1"></i> Hội nhóm</span>' :
-                          '<span class="text-purple-300 border border-purple-900 bg-purple-900/40 px-2.5 py-0.5 rounded-full text-[10px] ml-2 font-bold tracking-wider uppercase"><i class="fa-solid fa-user-group mr-1"></i> Đa năng</span>';
-
         const card = document.createElement('div');
-        card.className = 'combo-card rounded-3xl overflow-hidden flex flex-col group';
+        card.className = `combo-card ${getComboAccentClass(combo)} card-interactive rounded-[1.65rem] overflow-hidden flex flex-col group`;
+        card.tabIndex = 0;
+        const targetBadge = combo.target === 'couple'
+            ? 'C&#7863;p &#273;&#244;i'
+            : combo.target === 'group'
+                ? 'H&#7897;i nh&#243;m'
+                : '&#272;a n&#259;ng';
         card.innerHTML = `
-            <div class="h-52 overflow-hidden relative cursor-pointer" onclick="window.openComboDetail(${combo.id})">
-                <img src="${getComboImage(combo)}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-700 group-hover:scale-110">
-                <div class="absolute top-4 left-4 bg-gradient-to-r from-rose-500 to-orange-500 text-white font-black px-3 py-1 rounded-lg shadow-lg text-sm z-10 transform -rotate-2">Giảm ${combo.discount}</div>
-                <div class="absolute inset-0 bg-gradient-to-t from-[#0f0f13] to-transparent z-0"></div>
-            </div>
-            <div class="p-6 flex-1 flex flex-col justify-between bg-[#111115]/90 backdrop-blur-md relative z-10 -mt-2">
-                <div>
-                    <h3 class="text-2xl font-extrabold mb-1 flex items-center flex-wrap gap-y-2 text-white">${combo.title} ${targetBadge}</h3>
-                    <p class="text-gray-400 text-sm mb-4 mt-3 line-clamp-2 leading-relaxed">${combo.desc}</p>
-                    <p class="text-gray-300 text-sm mb-4 bg-white/5 p-3 rounded-xl border border-white/10 truncate"><i class="fa-solid fa-location-dot mr-2 text-rose-400"></i>${combo.address}</p>
+            <div class="combo-media overflow-hidden relative cursor-pointer rounded-t-[1.58rem]" onclick="window.openComboDetail(${combo.id})">
+                <img src="${getComboImage(combo)}" class="w-full h-full object-cover opacity-95" alt="${combo.title}" ${getImageAttrs()}>
+                <div class="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/36 to-transparent z-0"></div>
+                <div class="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/86 via-black/34 to-transparent z-[1]"></div>
+                <div class="absolute top-4 left-4 combo-badge text-white font-black px-3.5 py-1.5 rounded-full text-xs z-10">
+                    Voucher ${combo.discount}
                 </div>
-                <div class="flex items-center justify-between mt-3 pt-5 border-t border-white/10">
-                    <span class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-300">${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price)}</span>
-                    <button onclick="window.openComboDetail(${combo.id})" class="bg-white/10 hover:bg-rose-500 border border-white/20 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition">Chi tiết</button>
+                <div class="absolute top-4 right-4 combo-target-badge text-white font-black px-3.5 py-1.5 rounded-full text-xs z-10">
+                    ${targetBadge}
+                </div>
+                <div class="absolute left-5 right-5 bottom-5 z-10">
+                    <p class="text-sm text-white/80 font-extrabold mb-2 truncate"><i class="fa-solid fa-location-dot mr-1.5 text-orange-300"></i>${getComboArea(combo)}</p>
+                    <h3 class="card-title text-3xl md:text-[2rem] font-black text-white tracking-tight leading-[1.02] drop-shadow-[0_8px_20px_rgba(0,0,0,0.65)]">${combo.title}</h3>
+                </div>
+            </div>
+            <div class="p-5 flex-1 flex flex-col justify-between relative z-10">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="combo-target-badge text-white/90 px-3 py-1.5 rounded-full text-xs font-black">${targetBadge}</span>
+                    ${getComboTypeBadge(combo)}
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-5 pt-5 border-t border-white/10">
+                    <span class="combo-price-pill inline-flex items-center justify-center px-4 py-3 rounded-2xl text-xl font-black text-white">
+                        ${formatComboPrice(combo)}
+                    </span>
+                    <button onclick="window.openComboDetail(${combo.id})" class="combo-cta interactive-btn px-5 py-3 rounded-2xl text-sm font-black inline-flex items-center justify-center gap-2">
+                        Xem l&#7897; tr&#236;nh <i class="fa-solid fa-arrow-right"></i>
+                    </button>
                 </div>
             </div>
         `;
+        if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) {
+            let spotlightFrame = 0;
+            card.addEventListener('pointermove', (event) => {
+                if (spotlightFrame) return;
+                spotlightFrame = window.requestAnimationFrame(() => {
+                    const rect = card.getBoundingClientRect();
+                    card.style.setProperty('--spotlight-x', `${event.clientX - rect.left}px`);
+                    card.style.setProperty('--spotlight-y', `${event.clientY - rect.top}px`);
+                    spotlightFrame = 0;
+                });
+            });
+        }
         document.getElementById('combo-grid').appendChild(card);
     });
 };
@@ -690,11 +1239,11 @@ window.renderCombos = function() {
 window.filterCombosCategory = function(type) {
     const btns = document.querySelectorAll('.filter-btn');
     btns.forEach(btn => {
-        btn.classList.remove('btn-gradient', 'text-white', 'border-transparent');
-        btn.classList.add('bg-white/5', 'text-gray-300', 'border-white/10');
+        btn.classList.remove('active');
     });
-    event.target.classList.remove('bg-white/5', 'text-gray-300', 'border-white/10');
-    event.target.classList.add('btn-gradient', 'text-white', 'border-transparent');
+    const clickEvent = typeof event !== 'undefined' ? event : window.event;
+    const activeButton = clickEvent?.currentTarget || clickEvent?.target || Array.from(btns).find(btn => btn.getAttribute('onclick')?.includes(`'${type}'`));
+    activeButton?.classList.add('active');
     window.currentCategoryFilter = type;
     window.renderCombos();
 };
@@ -709,11 +1258,9 @@ window.resetFilters = function() {
     window.currentDistrictFilter = 'all';
     const btns = document.querySelectorAll('.filter-btn');
     btns.forEach(btn => {
-        btn.classList.remove('btn-gradient', 'text-white', 'border-transparent');
-        btn.classList.add('bg-white/5', 'text-gray-300', 'border-white/10');
+        btn.classList.remove('active');
     });
-    btns[0].classList.remove('bg-white/5', 'text-gray-300', 'border-white/10');
-    btns[0].classList.add('btn-gradient', 'text-white', 'border-transparent');
+    btns[0]?.classList.add('active');
     window.currentCategoryFilter = 'all';
     window.renderCombos();
 };
@@ -726,38 +1273,52 @@ window.openComboDetail = function(id) {
     if(!combo) return;
     const comboAddress = (combo.address || '').trim();
     const comboDirectionsButton = comboAddress ? `
-        <a href="${getGoogleMapsDirectionsUrl(comboAddress)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 btn-gradient text-white text-xs md:text-sm font-black px-4 py-2 rounded-xl shadow-lg hover:scale-105 transition shrink-0">
+        <a href="${getGoogleMapsDirectionsUrl(comboAddress)}" target="_blank" rel="noopener noreferrer" class="interactive-btn map-action inline-flex items-center gap-2 text-xs md:text-sm font-black px-4 py-2 rounded-xl shrink-0">
             <i class="fa-solid fa-route"></i>
             Chỉ đường
         </a>
     ` : '';
 
-    document.getElementById('detail-img').src = getComboImage(combo);
-    document.getElementById('detail-category').innerHTML = `<i class="fa-solid ${combo.icon} mr-1"></i> ${combo.category === 'low' ? 'Bình dân' : (combo.category === 'mid' ? 'Tiêu chuẩn' : 'Cao cấp')}`;
+    const detailImg = document.getElementById('detail-img');
+    detailImg.alt = combo.title;
+    detailImg.src = getComboImage(combo);
+    document.getElementById('detail-target').innerText = getTargetLabel(combo);
+    const categoryLabel = combo.category === 'low' ? 'Bình dân' : (combo.category === 'mid' ? 'Tiêu chuẩn' : 'Cao cấp');
+    const categoryClass = combo.target === 'group'
+        ? 'bg-violet-500/85 text-white border border-violet-300/30'
+        : combo.category === 'high'
+            ? 'bg-gradient-to-r from-rose-500 to-violet-500 text-white'
+            : combo.category === 'mid'
+                ? 'bg-gradient-to-r from-orange-400 to-amber-300 text-[#170B05]'
+                : 'bg-gradient-to-r from-cyan-400 to-green-400 text-[#061018]';
+    const detailCategory = document.getElementById('detail-category');
+    detailCategory.className = `inline-block ${categoryClass} px-3 py-1.5 rounded-full text-xs font-black`;
+    detailCategory.innerHTML = `<i class="fa-solid ${combo.icon} mr-1"></i> ${categoryLabel}`;
     document.getElementById('detail-title').innerText = combo.title;
     document.getElementById('lead-combo-id').value = combo.id;
     document.getElementById('lead-combo-title').value = combo.title;
     document.getElementById('lead-combo-discount').value = combo.discount;
     
     document.getElementById('detail-desc').innerHTML = `
-        <i class="fa-solid fa-location-dot text-rose-500 mt-1 mr-3 text-xl"></i>
+        <i class="fa-solid fa-location-dot text-rose-300 mt-1 mr-3 text-xl"></i>
         <div class="flex-1">
-            <span class="block text-gray-400 mb-1 text-xs font-bold uppercase tracking-widest">Khu vực chính</span>
+            <span class="block text-zinc-500 mb-1 text-xs font-bold uppercase tracking-widest">Khu vực chính</span>
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <span class="text-white font-bold text-lg">${comboAddress || 'Chua cap nhat dia diem'}</span>
                 ${comboDirectionsButton}
             </div>
+            <p class="text-zinc-300 mt-4">${combo.desc || ''}</p>
         </div>
     `;
-    document.getElementById('detail-price').innerText = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(combo.price);
-    document.getElementById('detail-btn-voucher').innerHTML = `<i class="fa-solid fa-ticket mr-2"></i>Lấy voucher ưu đãi demo ${combo.discount}`;
+    document.getElementById('detail-price').innerText = formatComboPrice(combo);
+    document.getElementById('detail-btn-voucher').innerHTML = `<i class="fa-solid fa-ticket mr-2"></i>Nhận voucher ${combo.discount}`;
 
     const timelineContainer = document.getElementById('detail-timeline');
     timelineContainer.innerHTML = '';
     getComboItinerary(combo).forEach((step) => {
         const stepLocation = String(step.location || '').trim();
         const stepDirectionsButton = stepLocation ? `
-            <a href="${getGoogleMapsDirectionsUrl(stepLocation)}" target="_blank" rel="noopener noreferrer" class="shrink-0 inline-flex items-center gap-1.5 bg-white/10 hover:bg-rose-500 border border-white/10 hover:border-rose-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition">
+            <a href="${getGoogleMapsDirectionsUrl(stepLocation)}" target="_blank" rel="noopener noreferrer" class="interactive-btn map-action shrink-0 inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1.5 rounded-lg">
                 <i class="fa-solid fa-location-arrow"></i>
                 Chỉ đường
             </a>
@@ -765,11 +1326,11 @@ window.openComboDetail = function(id) {
 
         timelineContainer.innerHTML += `
             <div class="relative">
-                <div class="absolute -left-[33px] top-1 h-6 w-6 rounded-full btn-gradient border-4 border-[#0f0f13] shadow-[0_0_10px_rgba(244,63,94,0.6)]"></div>
-                <h5 class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-300 font-black text-xl mb-1">${step.time}</h5>
+                <div class="absolute -left-[31px] top-1 h-4 w-4 rounded-full bg-rose-300 border-4 border-[#0b0d10]"></div>
+                <h5 class="text-rose-200 font-black text-lg mb-1">${step.time}</h5>
                 <p class="text-white font-bold text-lg mb-2">${step.activity}</p>
-                <div class="text-gray-400 text-sm flex items-start gap-3 mt-2 bg-white/5 p-3 rounded-xl border border-white/5">
-                    <i class="fa-solid fa-map-pin mt-1 text-gray-500"></i> 
+                <div class="text-zinc-300 text-sm flex items-start gap-3 mt-2 bg-white/[0.035] p-3 rounded-xl border border-white/10">
+                    <i class="fa-solid fa-map-pin mt-1 text-zinc-500"></i> 
                     <div class="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <span class="font-medium flex-1">${stepLocation || 'Chua cap nhat dia diem'}</span>
                         ${stepDirectionsButton}
@@ -1229,6 +1790,8 @@ window.exportToCSV = function() {
 // KHỞI CHẠY CÁC HÀM UI CÒN LẠI KHI TẢI TRANG
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
+    applyLocalComboImages();
+
     if (window.emailjs) {
         window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
     } else {
@@ -1242,6 +1805,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.renderTrendingCombos();
     window.initTrendingAutoScroll();
     window.populateInviteCombos();
+    window.setInviteCardMode?.(window.currentInviteCardMode || 'story');
     
     if(document.getElementById('fomo-toast')) {
         window.triggerFOMO = function() {

@@ -19,32 +19,564 @@
                 }
             }
         }
+
+        window.getDatePlannerFallbackImage = function(title = 'DatePlanner') {
+            const safeTitle = String(title || 'DatePlanner');
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520"><rect width="100%" height="100%" fill="#171717"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800" fill="#f43f5e">${safeTitle}</text></svg>`;
+            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        };
+
+        window.handleImageFallback = function(img) {
+            if (!img) return;
+            img.onerror = null;
+            img.src = window.getDatePlannerFallbackImage(img.alt || 'DatePlanner');
+        };
     </script>
     <style>
-        /* NỀN CỰC QUANG (AURORA GRADIENT BACKGROUND) */
+        :root {
+            --bg-main: #07070A;
+            --bg-section: #101018;
+            --bg-card: #171724;
+            --bg-card-warm: #1D1518;
+            --bg-card-cool: #111827;
+            --rose: #F43F5E;
+            --rose-soft: #FDA4AF;
+            --orange: #FB923C;
+            --amber: #FACC15;
+            --violet: #A855F7;
+            --cyan: #38BDF8;
+            --green: #22C55E;
+            --text-main: #FFF7ED;
+            --text-muted: #A1A1AA;
+        }
         body { 
-            background-color: #050505;
+            background-color: var(--bg-main);
             background-image: 
-                radial-gradient(at 0% 0%, hsla(339, 49%, 20%, 0.4) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, hsla(253, 40%, 20%, 0.4) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, hsla(28, 80%, 20%, 0.3) 0px, transparent 50%),
-                radial-gradient(at 0% 100%, hsla(225, 40%, 20%, 0.3) 0px, transparent 50%);
+                radial-gradient(circle at 8% -6%, rgba(244, 63, 94, 0.22), transparent 30%),
+                radial-gradient(circle at 92% 2%, rgba(168, 85, 247, 0.18), transparent 32%),
+                radial-gradient(circle at 50% 105%, rgba(251, 146, 60, 0.14), transparent 34%),
+                linear-gradient(180deg, #0B0B10 0%, #101018 45%, #07070A 100%);
             background-attachment: fixed;
-            color: #f3f4f6; 
+            color: var(--text-main); 
             scroll-behavior: smooth; 
         }
         
-        .text-gradient { background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-image: linear-gradient(to right, #f43f5e, #a855f7, #fb923c); }
-        .btn-gradient { background-image: linear-gradient(to right, #f43f5e, #a855f7); background-size: 200% auto; transition: all 0.5s ease; }
-        .btn-gradient:hover { background-position: right center; box-shadow: 0 0 20px rgba(168, 85, 247, 0.5); }
+        .text-gradient { background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-image: linear-gradient(110deg, #fff7ed, #fb7185 58%, #f59e0b); }
+        .btn-gradient { background-image: linear-gradient(135deg, #F43F5E, #FB923C); background-size: 120% auto; transition: transform 220ms ease, box-shadow 220ms ease, background-position 220ms ease; box-shadow: 0 16px 38px rgba(244, 63, 94, 0.24); }
+        .btn-gradient:hover { background-position: right center; box-shadow: 0 18px 44px rgba(251, 146, 60, 0.28); transform: translateY(-1px); }
+        .btn-gradient:active { transform: translateY(0) scale(0.98); }
+        .btn-gradient:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(251, 164, 175, 0.95), 0 0 0 6px rgba(244, 63, 94, 0.16), 0 16px 38px rgba(244, 63, 94, 0.24); }
         
-        .glass-panel { background: rgba(10, 10, 15, 0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .combo-card {
-            background: linear-gradient(145deg, rgba(30, 30, 35, 0.8) 0%, rgba(15, 15, 20, 0.9) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        .glass-panel { background: rgba(16, 16, 24, 0.76); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .premium-panel { background: linear-gradient(180deg, rgba(24, 24, 36, 0.96), rgba(16, 16, 24, 0.97)); border: 1px solid rgba(255, 255, 255, 0.09); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34); }
+        .section-eyebrow { color: #fda4af; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+        .soft-button { background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(244, 63, 94, 0.24); transition: all 220ms ease; }
+        .soft-button:hover { background: rgba(244, 63, 94, 0.12); border-color: rgba(168, 85, 247, 0.42); transform: translateY(-1px); }
+        .soft-button:active { transform: translateY(0) scale(0.98); }
+        .soft-button:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(251, 164, 175, 0.95), 0 0 0 6px rgba(244, 63, 94, 0.16); }
+        .interactive-btn {
+            transition: all 300ms ease-out;
+            transform: translateY(0) scale(1);
+            outline: none;
         }
-        .combo-card:hover { transform: translateY(-8px); border-color: rgba(244, 63, 94, 0.5); box-shadow: 0 20px 40px rgba(244, 63, 94, 0.2); }
+        .interactive-btn:hover { transform: translateY(-2px) scale(1); }
+        .interactive-btn:active { transform: translateY(0) scale(0.98); }
+        .interactive-btn:disabled, .interactive-btn[aria-disabled="true"] { transform: none; }
+        .interactive-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(251, 164, 175, 0.95), 0 0 0 6px rgba(244, 63, 94, 0.16);
+        }
+        .primary-action {
+            color: #fff;
+            background-image: linear-gradient(135deg, #F43F5E, #FB923C);
+            background-size: 130% auto;
+            box-shadow: 0 16px 38px rgba(244, 63, 94, 0.24);
+        }
+        .primary-action:hover {
+            background-image: linear-gradient(135deg, #FB7185, #FDBA74);
+            box-shadow: 0 18px 42px rgba(251, 146, 60, 0.28);
+        }
+        .primary-action:active { background-image: linear-gradient(135deg, #E11D48, #EA580C); }
+        .secondary-action {
+            color: #f8fafc;
+            background: rgba(16, 16, 24, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .secondary-action:hover {
+            color: #fff;
+            background: rgba(244, 63, 94, 0.12);
+            border-color: rgba(244, 63, 94, 0.42);
+        }
+        .secondary-action:active { background: rgba(168, 85, 247, 0.16); }
+        .filter-chip {
+            color: #cbd5e1;
+            background: rgba(255, 255, 255, 0.045);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+        .filter-chip:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.10);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+        .filter-chip.active {
+            color: #fff;
+            background: linear-gradient(135deg, #F43F5E, #A855F7);
+            border-color: rgba(251, 164, 175, 0.62);
+            box-shadow: 0 12px 26px rgba(244, 63, 94, 0.16);
+        }
+        .mood-chip {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(24, 24, 36, 0.96), rgba(16, 16, 24, 0.98));
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+        .mood-chip:hover { border-color: rgba(255, 255, 255, 0.22); }
+        .mood-chip.active, .mood-chip.is-selected { transform: translateY(-2px) scale(1); }
+        .map-action {
+            color: #061018;
+            background: #E0F2FE;
+            border: 1px solid rgba(56, 189, 248, 0.28);
+        }
+        .map-action:hover {
+            color: #03131c;
+            background: #38BDF8;
+            border-color: rgba(125, 211, 252, 0.74);
+        }
+        .map-action:active { background: #0EA5E9; }
+        .card-interactive {
+            cursor: pointer;
+            transition: transform 260ms ease, border-color 260ms ease, box-shadow 260ms ease;
+        }
+        .card-interactive:hover {
+            border-color: rgba(244, 63, 94, 0.32);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34), 0 0 24px rgba(168, 85, 247, 0.08);
+        }
+        .card-interactive:active { transform: translateY(-2px) scale(0.99); }
+        .card-interactive:focus-visible {
+            outline: none;
+            border-color: rgba(251, 164, 175, 0.55);
+            box-shadow: 0 0 0 2px rgba(251, 164, 175, 0.9), 0 0 0 6px rgba(244, 63, 94, 0.14), 0 20px 54px rgba(0, 0, 0, 0.34);
+        }
+        .card-interactive:hover .card-title { color: #FDA4AF; }
+        .card-title { transition: color 220ms ease; }
+        .premium-input { background: rgba(11, 11, 16, 0.86); border: 1px solid rgba(255, 255, 255, 0.11); border-radius: 1rem; color: #fff; transition: border-color 180ms ease, background 180ms ease; }
+        .premium-input:focus { outline: none; border-color: rgba(251, 146, 60, 0.55); background: rgba(18, 18, 28, 0.96); }
+        .combo-card {
+            --spotlight-x: 50%;
+            --spotlight-y: 35%;
+            position: relative;
+            isolation: isolate;
+            min-height: 520px;
+            padding: 1px;
+            background:
+                linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.035)) border-box,
+                linear-gradient(180deg, rgba(24, 24, 36, 0.98), rgba(11, 11, 18, 0.99)) padding-box;
+            border: 1px solid transparent;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+            transition: transform 320ms ease, box-shadow 320ms ease, background 320ms ease;
+        }
+        .combo-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 3;
+            background: radial-gradient(280px circle at var(--spotlight-x) var(--spotlight-y), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06) 26%, transparent 62%);
+            opacity: 0;
+            transition: opacity 240ms ease;
+        }
+        .combo-card::after {
+            content: '';
+            position: absolute;
+            inset: 1px;
+            border-radius: calc(1.65rem - 1px);
+            pointer-events: none;
+            z-index: -1;
+            background: linear-gradient(180deg, rgba(23, 23, 34, 0.98), rgba(10, 10, 16, 0.98));
+        }
+        .combo-card:hover {
+            transform: translateY(-8px);
+            background:
+                linear-gradient(135deg, rgba(244, 63, 94, 0.88), rgba(168, 85, 247, 0.82), rgba(251, 146, 60, 0.46)) border-box,
+                linear-gradient(180deg, rgba(24, 24, 36, 0.98), rgba(11, 11, 18, 0.99)) padding-box;
+            box-shadow: 0 30px 76px rgba(0, 0, 0, 0.48), 0 0 36px rgba(244, 63, 94, 0.18), 0 0 54px rgba(168, 85, 247, 0.13);
+        }
+        .combo-card:hover::before { opacity: 1; }
+        .combo-media { height: 310px; }
+        .combo-media img { transition: transform 950ms cubic-bezier(.2,.7,.2,1), opacity 650ms ease, filter 650ms ease; }
+        .combo-card:hover .combo-media img { transform: scale(1.085); opacity: 1; filter: saturate(1.12) contrast(1.05); }
+        .combo-badge {
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.96), rgba(168, 85, 247, 0.88));
+            border: 1px solid rgba(255, 255, 255, 0.34);
+            box-shadow: 0 12px 30px rgba(244, 63, 94, 0.28);
+        }
+        .combo-target-badge {
+            background: rgba(9, 9, 14, 0.66);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .combo-price-pill {
+            background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(244, 63, 94, 0.16));
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.25);
+        }
+        .combo-cta {
+            min-height: 48px;
+            color: #fff;
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.95), rgba(168, 85, 247, 0.88));
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            box-shadow: 0 16px 34px rgba(244, 63, 94, 0.22);
+        }
+        .combo-card:hover .combo-cta,
+        .combo-cta:hover {
+            background: linear-gradient(135deg, #FB7185, #A855F7 55%, #38BDF8);
+            border-color: rgba(255, 255, 255, 0.36);
+            box-shadow: 0 18px 42px rgba(168, 85, 247, 0.28);
+        }
+        @media (hover: none), (pointer: coarse) {
+            .combo-card { min-height: 0; }
+            .combo-card::before { display: none; }
+            .combo-media { height: 280px; }
+            .combo-card:hover { transform: none; }
+        }
+        .section-hero, .section-mood, .section-trending, .section-combos, .section-random, .section-invite, .section-voucher {
+            position: relative;
+            isolation: isolate;
+        }
+        .section-hero { background: radial-gradient(circle at 14% 16%, rgba(244, 63, 94, 0.20), transparent 30%), radial-gradient(circle at 72% 72%, rgba(251, 146, 60, 0.14), transparent 34%); }
+        .section-mood {
+            background:
+                radial-gradient(circle at 10% 12%, rgba(56, 189, 248, 0.18), transparent 28%),
+                radial-gradient(circle at 78% 10%, rgba(244, 63, 94, 0.16), transparent 30%),
+                radial-gradient(circle at 54% 88%, rgba(168, 85, 247, 0.20), transparent 34%),
+                linear-gradient(180deg, #12121c 0%, #0b0b12 100%);
+        }
+        .section-trending { background: radial-gradient(circle at 18% 8%, rgba(250, 204, 21, 0.12), transparent 32%), radial-gradient(circle at 86% 18%, rgba(244, 63, 94, 0.14), transparent 30%); }
+        .section-combos { background: radial-gradient(circle at 8% 16%, rgba(17, 24, 39, 0.86), transparent 34%), radial-gradient(circle at 88% 24%, rgba(56, 189, 248, 0.08), transparent 30%); }
+        .section-random { background: radial-gradient(circle at 20% 16%, rgba(168, 85, 247, 0.16), transparent 34%), radial-gradient(circle at 78% 80%, rgba(251, 146, 60, 0.12), transparent 32%), var(--bg-section); }
+        .section-invite { background: radial-gradient(circle at 16% 20%, rgba(244, 63, 94, 0.11), transparent 32%), radial-gradient(circle at 86% 18%, rgba(168, 85, 247, 0.14), transparent 34%); }
+        .invite-card-shell {
+            position: relative;
+            width: min(100%, 420px);
+            margin: 0 auto;
+            padding: 1px;
+            border-radius: 2.15rem;
+            background: linear-gradient(145deg, rgba(244, 63, 94, 0.88), rgba(168, 85, 247, 0.82), rgba(251, 146, 60, 0.72));
+            box-shadow: 0 0 42px rgba(244, 63, 94, 0.28), 0 0 80px rgba(168, 85, 247, 0.18), 0 28px 90px rgba(0, 0, 0, 0.58);
+            transition: transform 220ms ease, box-shadow 220ms ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .invite-card-shell:hover {
+                transform: translateY(-4px) scale(1.012);
+                box-shadow: 0 0 54px rgba(244, 63, 94, 0.36), 0 0 96px rgba(168, 85, 247, 0.24), 0 34px 105px rgba(0, 0, 0, 0.62);
+            }
+        }
+        .invite-card-preview {
+            aspect-ratio: 9 / 16;
+            min-height: 560px;
+            border-radius: calc(2.15rem - 1px);
+            overflow: hidden;
+            position: relative;
+            isolation: isolate;
+            background: #0b0b12;
+            color: #fff;
+        }
+        .invite-card-preview.is-square {
+            aspect-ratio: 1 / 1;
+            min-height: 0;
+        }
+        .invite-card-preview::before,
+        .invite-card-preview::after {
+            content: '';
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(34px);
+            opacity: 0.74;
+            z-index: 2;
+            pointer-events: none;
+            animation: inviteFloat 7s ease-in-out infinite alternate;
+        }
+        .invite-card-preview::before { width: 170px; height: 170px; right: -46px; top: 10%; background: rgba(244, 63, 94, 0.74); }
+        .invite-card-preview::after { width: 210px; height: 210px; left: -74px; bottom: 13%; background: rgba(168, 85, 247, 0.66); animation-delay: -2s; }
+        @keyframes inviteFloat {
+            from { transform: translate3d(0, 0, 0) scale(1); }
+            to { transform: translate3d(12px, -16px, 0) scale(1.08); }
+        }
+        .invite-card-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scale(1.03);
+            z-index: 0;
+        }
+        .invite-card-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background:
+                linear-gradient(180deg, rgba(5, 5, 8, 0.18) 0%, rgba(5, 5, 8, 0.18) 28%, rgba(5, 5, 8, 0.82) 72%, rgba(5, 5, 8, 0.97) 100%),
+                radial-gradient(circle at 72% 18%, rgba(244, 63, 94, 0.38), transparent 32%),
+                radial-gradient(circle at 18% 82%, rgba(251, 146, 60, 0.32), transparent 34%);
+        }
+        .invite-card-shine {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.28;
+            mix-blend-mode: screen;
+            background:
+                linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.16) 18%, transparent 34%),
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 4px);
+        }
+        .invite-card-content {
+            position: relative;
+            z-index: 3;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: clamp(1.35rem, 5vw, 2.15rem);
+        }
+        .invite-poster-title {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            text-wrap: balance;
+        }
+        .invite-message-box {
+            max-height: 8.8rem;
+            overflow: hidden;
+        }
+        .invite-message-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+        }
+        .invite-card-preview.is-square .invite-card-content { padding: clamp(1.1rem, 4vw, 1.6rem); }
+        .invite-card-preview.is-square .invite-poster-title {
+            font-size: clamp(2.05rem, 8vw, 3.45rem);
+            -webkit-line-clamp: 2;
+        }
+        .invite-card-preview.is-square .invite-message-box { max-height: 6.7rem; }
+        .invite-card-preview.is-square .invite-message-text {
+            font-size: 0.96rem;
+            line-height: 1.42;
+            -webkit-line-clamp: 3;
+        }
+        .invite-card-preview.is-square .invite-card-footer { margin-top: 0.9rem; }
+        .invite-card-preview > .invite-card-content > .flex:first-child .invite-glass-pill:first-child img { display: none; }
+        .invite-card-preview > .invite-card-content > .flex:first-child .invite-glass-pill:first-child span {
+            font-size: 0;
+            letter-spacing: 0;
+        }
+        .invite-card-preview > .invite-card-content > .flex:first-child .invite-glass-pill:first-child span::after {
+            content: 'DATE PLANNER INVITE';
+            font-size: 0.68rem;
+            letter-spacing: 0.18em;
+        }
+        .invite-card-preview > .invite-card-content > .flex:first-child .invite-glass-pill:first-child::before {
+            content: '';
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 999px;
+            background: #f43f5e;
+            box-shadow: 0 0 14px rgba(244, 63, 94, 0.9);
+        }
+        #prev-name {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            text-wrap: balance;
+        }
+        #prev-message {
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+        }
+        .invite-card-preview #prev-message {
+            background: rgba(255, 255, 255, 0.11);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: 1.5rem;
+            padding: 1.1rem;
+            max-height: 10rem;
+        }
+        .invite-card-preview #prev-combo-title {
+            font-size: 0.95rem;
+            color: #e5e7eb;
+        }
+        .invite-card-preview.is-square #prev-name {
+            font-size: clamp(2.2rem, 8vw, 3.45rem);
+            line-height: 0.96;
+        }
+        .invite-card-preview.is-square #prev-message {
+            font-size: 1rem;
+            line-height: 1.45;
+            -webkit-line-clamp: 3;
+            max-height: 7.5rem;
+            margin-top: 1.1rem;
+            margin-bottom: 1.1rem;
+        }
+        .invite-card-preview.is-long-message #prev-message {
+            font-size: clamp(0.95rem, 4vw, 1.05rem);
+            line-height: 1.45;
+        }
+        .invite-card-preview.is-square #prev-combo-address { display: none; }
+        .invite-glass-pill {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .invite-mode-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #d4d4d8;
+        }
+        .invite-mode-btn.active {
+            color: #fff;
+            border-color: rgba(244, 63, 94, 0.58);
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.8), rgba(168, 85, 247, 0.72));
+            box-shadow: 0 0 24px rgba(244, 63, 94, 0.22);
+        }
+        .invite-action-btn {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff;
+            transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+        }
+        .invite-action-btn:hover {
+            transform: translateY(-2px);
+            border-color: rgba(251, 146, 60, 0.5);
+            background: rgba(255, 255, 255, 0.11);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+        }
+        .invite-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 2rem;
+            transform: translate(-50%, 120%);
+            opacity: 0;
+            z-index: 140;
+            transition: transform 220ms ease, opacity 220ms ease;
+        }
+        .invite-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+        .section-voucher { background: radial-gradient(circle at 20% 8%, rgba(244, 63, 94, 0.24), transparent 34%), radial-gradient(circle at 84% 12%, rgba(250, 204, 21, 0.18), transparent 32%); }
+        .section-footer { background: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.10), transparent 28%), #0B1220; }
+        .hero-city-bg {
+            background-image:
+                radial-gradient(circle at 18% 18%, rgba(244, 63, 94, 0.30), transparent 28%),
+                radial-gradient(circle at 82% 12%, rgba(168, 85, 247, 0.24), transparent 30%),
+                radial-gradient(circle at 68% 88%, rgba(251, 146, 60, 0.18), transparent 34%),
+                linear-gradient(135deg, #15151F 0%, #101018 45%, #0B0B10 100%);
+        }
+        .mood-card {
+            position: relative;
+            overflow: hidden;
+            min-height: 178px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.025));
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+        }
+        .mood-card::before { content: ''; position: absolute; inset: 0; opacity: 0.16; transition: opacity 220ms ease; pointer-events: none; }
+        .mood-card::after {
+            content: '';
+            position: absolute;
+            inset: auto 18px -42px 18px;
+            height: 74px;
+            filter: blur(28px);
+            opacity: 0;
+            transition: opacity 220ms ease, transform 220ms ease;
+            pointer-events: none;
+        }
+        .mood-card:hover::before, .mood-card.is-selected::before, .mood-card.active::before { opacity: 0.34; }
+        .mood-card:hover::after, .mood-card.is-selected::after, .mood-card.active::after { opacity: 0.72; transform: translateY(-6px); }
+        .mood-card:hover { transform: translateY(-5px); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38); }
+        .mood-card.is-selected, .mood-card.active { transform: translateY(-5px); box-shadow: 0 24px 66px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255,255,255,0.16) inset; }
+        .mood-card .selected-mark { display: none; }
+        .mood-card.is-selected .selected-mark, .mood-card.active .selected-mark { display: inline-flex; }
+        .mood-icon { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 12px 28px rgba(0,0,0,0.24); }
+        .mood-microcopy { color: rgba(255,255,255,0.66); }
+        .mood-chill { border-color: rgba(56, 189, 248, 0.24); }
+        .mood-chill::before { background: linear-gradient(135deg, rgba(56, 189, 248, 0.58), transparent 62%); }
+        .mood-chill::after { background: #38BDF8; }
+        .mood-chill .mood-icon { color: #E0F2FE; background: linear-gradient(135deg, #38BDF8, #0EA5E9); }
+        .mood-chill:hover, .mood-chill.is-selected, .mood-chill.active { border-color: rgba(56, 189, 248, 0.55); }
+        .mood-active { border-color: rgba(251, 146, 60, 0.22); }
+        .mood-active::before { background: linear-gradient(135deg, rgba(251, 146, 60, 0.60), transparent 62%); }
+        .mood-active::after { background: #FB923C; }
+        .mood-active .mood-icon { color: #FFF7ED; background: linear-gradient(135deg, #FB923C, #EF4444); }
+        .mood-active:hover, .mood-active.is-selected, .mood-active.active { border-color: rgba(251, 146, 60, 0.58); }
+        .mood-romantic { border-color: rgba(244, 63, 94, 0.24); }
+        .mood-romantic::before { background: linear-gradient(135deg, rgba(244, 63, 94, 0.62), transparent 62%); }
+        .mood-romantic::after { background: #F43F5E; }
+        .mood-romantic .mood-icon { color: #FFF1F2; background: linear-gradient(135deg, #F43F5E, #A855F7); }
+        .mood-romantic:hover, .mood-romantic.is-selected, .mood-romantic.active { border-color: rgba(244, 63, 94, 0.58); }
+        .mood-fun { border-color: rgba(168, 85, 247, 0.24); }
+        .mood-fun::before { background: linear-gradient(135deg, rgba(168, 85, 247, 0.62), transparent 62%); }
+        .mood-fun::after { background: #A855F7; }
+        .mood-fun .mood-icon { color: #FAF5FF; background: linear-gradient(135deg, #A855F7, #38BDF8); }
+        .mood-fun:hover, .mood-fun.is-selected, .mood-fun.active { border-color: rgba(168, 85, 247, 0.58); }
+        .mood-loading {
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.14), rgba(168, 85, 247, 0.13));
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 20px 56px rgba(0,0,0,0.34);
+        }
+        .mood-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #FDA4AF; animation: moodTyping 820ms infinite ease-in-out; }
+        .mood-dot:nth-child(2) { animation-delay: 120ms; background: #C084FC; }
+        .mood-dot:nth-child(3) { animation-delay: 240ms; background: #38BDF8; }
+        @keyframes moodTyping {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.42; }
+            40% { transform: translateY(-6px); opacity: 1; }
+        }
+        .mood-result-hero {
+            background:
+                radial-gradient(circle at 18% 4%, rgba(244, 63, 94, 0.24), transparent 34%),
+                radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.16), transparent 30%),
+                linear-gradient(145deg, rgba(24, 24, 36, 0.98), rgba(8, 8, 14, 0.99));
+            border: 1px solid rgba(255,255,255,0.13);
+            box-shadow: 0 34px 90px rgba(0,0,0,0.50), 0 0 58px rgba(244, 63, 94, 0.18), 0 0 72px rgba(168, 85, 247, 0.12);
+            animation: moodResultIn 480ms ease both;
+        }
+        .mood-result-media { height: 330px; }
+        .mood-result-media img { transition: transform 900ms ease, filter 900ms ease; }
+        .mood-result-hero:hover .mood-result-media img { transform: scale(1.045); filter: saturate(1.12) contrast(1.05); }
+        .mood-result-pill {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.13);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+        }
+        @keyframes moodResultIn {
+            from { opacity: 0; transform: translateY(18px) scale(0.985); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @media (min-width: 1024px) {
+            .mood-result-media { height: auto; min-height: 520px; }
+        }
+        .voucher-premium {
+            background:
+                radial-gradient(circle at 12% 0%, rgba(244, 63, 94, 0.34), transparent 34%),
+                radial-gradient(circle at 88% 14%, rgba(168, 85, 247, 0.26), transparent 32%),
+                linear-gradient(135deg, rgba(244, 63, 94, 0.18), rgba(24, 24, 36, 0.98) 42%, rgba(251, 146, 60, 0.18));
+            border-color: rgba(251, 146, 60, 0.24);
+        }
         
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -56,36 +588,71 @@
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
         .trending-carousel {
-            gap: 2rem;
+            gap: 1.6rem;
             cursor: grab;
             overscroll-behavior-x: contain;
-            scroll-snap-type: x proximity;
+            scroll-snap-type: x mandatory;
+            scroll-padding-inline: 1rem;
             mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
             -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%);
             will-change: scroll-position;
         }
         .trending-carousel:active { cursor: grabbing; }
         .trending-card {
-            flex: 0 0 calc((100% - 4rem) / 3);
+            flex: 0 0 min(390px, calc((100% - 3.2rem) / 3));
             min-width: 0;
             transform: translateZ(0) scale(0.96);
-            opacity: 0.78;
+            opacity: 0.86;
+            background:
+                linear-gradient(#15151f, #15151f) padding-box,
+                linear-gradient(145deg, rgba(244,63,94,0.52), rgba(168,85,247,0.55), rgba(251,146,60,0.28)) border-box;
+            border: 1px solid transparent;
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.36), 0 0 30px rgba(168, 85, 247, 0.08);
             transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease, border-color 420ms ease, box-shadow 420ms ease;
             will-change: transform;
+        }
+        .trending-card.rank-1 {
+            flex-basis: min(430px, calc((100% - 3.2rem) / 2.75));
+            background:
+                linear-gradient(#17151c, #17151c) padding-box,
+                linear-gradient(145deg, rgba(250,204,21,0.9), rgba(251,146,60,0.78), rgba(244,63,94,0.46)) border-box;
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45), 0 0 44px rgba(251, 146, 60, 0.18), 0 0 28px rgba(250, 204, 21, 0.14);
         }
         .trending-card.is-center {
             transform: translateZ(0) scale(1);
             opacity: 1;
-            border-color: rgba(251, 146, 60, 0.32);
-            box-shadow: 0 24px 60px rgba(244, 63, 94, 0.18), 0 0 36px rgba(251, 146, 60, 0.08);
+            border-color: rgba(250, 204, 21, 0.38);
+            box-shadow: 0 30px 75px rgba(0, 0, 0, 0.42), 0 0 32px rgba(244, 63, 94, 0.13);
+        }
+        .trending-card.rank-1.is-center {
+            box-shadow: 0 34px 86px rgba(0, 0, 0, 0.48), 0 0 56px rgba(251, 146, 60, 0.24), 0 0 32px rgba(250, 204, 21, 0.18);
         }
         .trending-card:hover {
-            transform: translateY(-8px) scale(1.025);
-            border-color: rgba(244, 63, 94, 0.56);
-            box-shadow: 0 24px 56px rgba(244, 63, 94, 0.24), 0 0 42px rgba(168, 85, 247, 0.16);
+            transform: translateY(-6px) scale(1.01);
+            border-color: rgba(244, 63, 94, 0.28);
+            box-shadow: 0 34px 80px rgba(0, 0, 0, 0.48), 0 0 34px rgba(244, 63, 94, 0.16), 0 0 28px rgba(168, 85, 247, 0.12);
+        }
+        .trending-rank {
+            font-size: clamp(4.8rem, 8vw, 7rem);
+            line-height: 0.78;
+            letter-spacing: -0.08em;
+            text-shadow: 0 18px 40px rgba(0, 0, 0, 0.56);
+        }
+        .trending-title {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+        }
+        .trending-card img { transition: transform 700ms ease, opacity 700ms ease, filter 700ms ease; }
+        .trending-card:hover img { transform: scale(1.08); filter: saturate(1.14) contrast(1.05); }
+        .trending-card.rank-1 .trending-badge {
+            background: linear-gradient(135deg, #facc15, #fb923c);
+            color: #190b03;
         }
         @media (max-width: 1023px) {
-            .trending-card { flex-basis: calc((100% - 2rem) / 2); }
+            .trending-card, .trending-card.rank-1 { flex-basis: calc((100% - 1.6rem) / 2); }
         }
         @media (max-width: 639px) {
             .trending-carousel {
@@ -94,7 +661,8 @@
                 mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
                 -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
             }
-            .trending-card { flex-basis: 86%; }
+            .trending-card, .trending-card.rank-1 { flex-basis: 86%; }
+            .trending-rank { font-size: 4.6rem; }
         }
         @media (prefers-reduced-motion: reduce) {
             .trending-card,
@@ -106,12 +674,12 @@
         .ticket-cutout { position: relative; }
         .ticket-cutout::before, .ticket-cutout::after {
             content: ''; position: absolute; top: 50%; transform: translateY(-50%); width: 20px; height: 20px;
-            background-color: #0f0f13; border-radius: 50%; z-index: 10;
+            background-color: #101018; border-radius: 50%; z-index: 10;
         }
         .ticket-cutout::before { left: -10px; border-right: 1px solid rgba(255, 255, 255, 0.1); }
         .ticket-cutout::after { right: -10px; border-left: 1px solid rgba(255, 255, 255, 0.1); }
         
-        .top-1-glow { box-shadow: 0 0 25px rgba(250, 204, 21, 0.3); border-color: rgba(250, 204, 21, 0.6); }
+        .top-1-glow { box-shadow: 0 12px 28px rgba(250, 204, 21, 0.12); border-color: rgba(250, 204, 21, 0.28); }
 
         .animate-spin-slow { animation: spin 4s linear infinite; }
         
@@ -142,120 +710,154 @@
     <!-- ========================================== -->
     <div id="client-view">
         <!-- Navbar -->
-        <nav class="fixed w-full z-50 glass-panel border-b border-white/5">
+        <nav class="fixed w-full z-50 glass-panel border-b border-white/[0.06]">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-16">
-                    <div class="flex-shrink-0 font-black text-2xl text-white tracking-widest flex items-center gap-2">
-                        <i class="fa-solid fa-heart text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500"></i>
-                        <span>DATE<span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-purple-500">PLANNER</span></span>
+                    <div class="flex-shrink-0 font-extrabold text-xl text-white tracking-tight flex items-center gap-2">
+                        <img src="./logodateplanner.jpg" class="w-8 h-8 rounded-xl object-cover bg-white" alt="DatePlanner" decoding="async" onerror="window.handleImageFallback(this)">
+                        <span>DatePlanner</span>
                     </div>
                     <div class="hidden lg:block">
-                        <div class="ml-10 flex items-baseline space-x-6">
-                            <a href="#home" class="hover:text-rose-400 transition px-2 py-2 text-sm font-bold">Trang chủ</a>
-                            <a href="#mood-quiz-section" class="hover:text-purple-400 transition px-2 py-2 text-sm font-bold"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Gợi ý Mood</a>
-                            <a href="#trending-section" class="hover:text-orange-400 transition px-2 py-2 text-sm font-bold">Trending <i class="fa-solid fa-fire text-orange-500"></i></a>
-                            <a href="#combos" class="hover:text-rose-400 transition px-2 py-2 text-sm font-bold">Tất cả Combo</a>
-                            <a href="#random" class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400 hover:text-white transition px-2 py-2 text-sm font-black tracking-wide"><i class="fa-solid fa-dice mr-1 text-rose-500"></i> Vòng Quay</a>
-                            <a href="#invite-maker" class="text-white bg-white/10 border border-white/20 hover:bg-white/20 transition px-4 py-2 rounded-full text-sm font-bold shadow-lg ml-2"><i class="fa-solid fa-envelope-open-text mr-1.5"></i> Tạo Thiệp Mời</a>
+                        <div class="ml-10 flex items-center space-x-6 text-sm text-gray-300">
+                            <a href="#home" class="hover:text-white transition px-1 py-2 font-semibold">Trang chủ</a>
+                            <a href="#mood-quiz-section" class="hover:text-white transition px-1 py-2 font-semibold">Mood</a>
+                            <a href="#trending-section" class="hover:text-white transition px-1 py-2 font-semibold">Trending</a>
+                            <a href="#combos" class="hover:text-white transition px-1 py-2 font-semibold">Lộ trình</a>
+                            <a href="#random" class="hover:text-white transition px-1 py-2 font-semibold">Gợi ý nhanh</a>
+                            <a href="#invite-maker" class="interactive-btn secondary-action px-4 py-2 rounded-full text-sm font-bold ml-2">Tạo e-card</a>
                         </div>
                     </div>
                     <!-- Mobile menu button (Icon) -->
                     <div class="lg:hidden flex items-center">
-                        <a href="#random" class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400 font-black text-sm mr-4"><i class="fa-solid fa-dice"></i> Quay</a>
+                        <a href="#random" class="interactive-btn secondary-action font-bold text-sm px-4 py-2 rounded-full">Gợi ý</a>
                     </div>
                 </div>
             </div>
         </nav>
 
         <!-- Trình Phát Nhạc Lofi -->
-        <div id="music-player" class="fixed bottom-6 left-6 z-40 flex items-center gap-4 glass-panel p-2.5 rounded-full shadow-[0_0_30px_rgba(168,85,247,0.2)] cursor-pointer hover:bg-white/10 transition border border-white/10" onclick="toggleMusic()">
+        <div id="music-player" class="fixed bottom-6 left-6 z-40 flex items-center gap-4 glass-panel p-2.5 rounded-full cursor-pointer hover:bg-white/10 transition border border-white/10" onclick="toggleMusic()">
             <div class="relative w-12 h-12 rounded-full overflow-hidden border-2 border-gray-800 shadow-inner" id="vinyl-wrapper">
-                <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=100&q=80" id="vinyl-img" class="w-full h-full object-cover animate-spin-slow" style="animation-play-state: paused;" alt="Vinyl Record">
+                <img src="./logodateplanner.jpg" id="vinyl-img" class="w-full h-full object-cover animate-spin-slow" style="animation-play-state: paused;" alt="DatePlanner" loading="lazy" decoding="async" onerror="window.handleImageFallback(this)">
                 <div class="absolute inset-0 m-auto w-3 h-3 bg-gray-900 rounded-full border border-gray-600"></div>
                 <div class="absolute inset-0 flex items-center justify-center bg-black/50 text-white transition-opacity" id="music-overlay">
                     <i id="music-icon" class="fa-solid fa-play text-sm ml-1"></i>
                 </div>
             </div>
             <div class="pr-4 hidden md:block">
-                <p class="text-[10px] text-purple-400 font-bold tracking-widest uppercase mb-0.5"><i class="fa-solid fa-headphones mr-1"></i> Chill Vibe</p>
-                <p class="text-sm text-white font-bold" id="music-text">Bật nhạc lên nào...</p>
+                <p class="text-[10px] text-rose-300 font-bold tracking-widest uppercase mb-0.5"><i class="fa-solid fa-headphones mr-1"></i> City sound</p>
+                <p class="text-sm text-white font-bold" id="music-text">Bật nhạc nền</p>
             </div>
             <audio id="bg-music" loop preload="none">
                 <source src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
             </audio>
         </div>
 
-        <!-- Hero Section Cực Điện Ảnh -->
-        <section id="home" class="relative pt-32 pb-20 px-4 text-center min-h-[85vh] flex flex-col justify-center items-center overflow-hidden border-b border-white/5">
-            <div class="absolute inset-0 w-full h-full overflow-hidden z-0">
-                <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1583417311718-c981d1e7675f?auto=format&fit=crop&w=1920&q=80')] bg-cover bg-center animate-image-pan opacity-30 mix-blend-screen"></div>
+        <!-- Hero Section -->
+        <section id="home" class="section-hero relative pt-28 pb-16 lg:pt-36 lg:pb-24 px-4 overflow-hidden border-b border-white/[0.06]">
+            <div class="absolute inset-0 z-0 pointer-events-none">
+                <div class="absolute inset-0 hero-city-bg"></div>
+                <div class="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#101018] to-transparent"></div>
             </div>
-            <div class="absolute inset-0 bg-gradient-to-b from-[#050505]/90 via-[#050505]/50 to-[#050505] z-0 pointer-events-none"></div>
             
-            <div class="relative z-10 w-full mt-10">
-                <div class="inline-block bg-white/10 backdrop-blur-md text-white border border-white/20 px-4 py-1.5 rounded-full text-xs font-bold mb-6 tracking-widest uppercase">
-                    <i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> Sài Gòn Local Guide
+            <div class="relative z-10 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.02fr_0.88fr] gap-12 lg:gap-16 items-center min-h-[78vh]">
+                <div class="text-left">
+                    <div class="section-eyebrow mb-5 flex items-center gap-2">
+                        <i class="fa-solid fa-location-dot text-rose-400"></i>
+                        Sài Gòn local guide
+                    </div>
+                    <h1 class="text-5xl md:text-6xl lg:text-7xl font-black mb-6 tracking-tight leading-[0.98] text-white max-w-4xl">
+                        Không còn mất 1 giờ để quyết định đi đâu.
+                    </h1>
+                    <p class="max-w-2xl text-zinc-300 text-base md:text-xl mb-9 font-medium leading-relaxed">
+                        DatePlanner tạo sẵn lộ trình đi chơi theo mood, ngân sách và khu vực — kèm voucher ưu đãi demo để bạn chốt kèo nhanh hơn.
+                    </p>
+                    <div class="flex gap-4 flex-wrap">
+                        <a href="#combos" class="interactive-btn primary-action font-extrabold py-4 px-7 rounded-full flex items-center text-base md:text-lg">
+                            Khám phá lộ trình <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+                        </a>
+                        <a href="#mood-quiz-section" class="interactive-btn secondary-action font-bold py-4 px-7 rounded-full flex items-center text-base md:text-lg">
+                            Bắt đầu theo mood
+                        </a>
+                    </div>
                 </div>
-                <h1 class="text-5xl md:text-7xl lg:text-8xl font-black mb-6 tracking-tighter leading-tight drop-shadow-2xl">
-                    Hết đau đầu vì <br>
-                    <span class="text-gradient">"Đi đâu cũng được"</span>
-                </h1>
-                <p class="mt-6 max-w-2xl text-gray-300 mx-auto text-lg md:text-xl mb-12 font-medium drop-shadow-md leading-relaxed">
-                    Khám phá 15+ lộ trình demo giải trí trọn gói tại TP.HCM. Chốt kèo nhanh chóng, nhận voucher ưu đãi demo từ địa điểm tham khảo!
-                </p>
-                <div class="flex justify-center gap-5 flex-wrap">
-                    <a href="#mood-quiz-section" class="btn-gradient text-white font-extrabold py-4 px-10 rounded-full transition shadow-[0_0_30px_rgba(244,63,94,0.4)] hover:shadow-[0_0_40px_rgba(244,63,94,0.6)] hover:scale-105 flex items-center text-lg">
-                        <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Bắt Mạch Cảm Xúc
-                    </a>
-                    <a href="#combos" class="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-4 px-10 rounded-full transition border border-white/20 flex items-center text-lg">
-                        Khám Phá Tất Cả <i class="fa-solid fa-arrow-down ml-2"></i>
-                    </a>
+
+                <div class="premium-panel card-interactive rounded-[1.75rem] overflow-hidden relative border-rose-500/20">
+                    <div class="relative h-72 md:h-80 overflow-hidden">
+                        <img src="./giosongSG.jpg" class="w-full h-full object-cover transition duration-700 hover:scale-[1.03] brightness-110 saturate-110" alt="Gió Sông Sài Gòn" loading="lazy" decoding="async" onerror="window.handleImageFallback(this)">
+                        <div class="absolute inset-0 bg-gradient-to-t from-[#0b0d10] via-[#0b0d10]/25 to-transparent"></div>
+                        <div class="absolute left-5 top-5 primary-action rounded-full px-3 py-1.5 text-xs font-black">
+                            Voucher demo 10%
+                        </div>
+                    </div>
+                    <div class="p-6 md:p-7">
+                        <div class="flex items-start justify-between gap-5 mb-5">
+                            <div>
+                                <p class="text-sm text-zinc-400 mb-1">Quận 1 · Waterbus · Hoàng hôn</p>
+                                <h2 class="card-title text-2xl md:text-3xl font-black text-white tracking-tight">Gió Sông Sài Gòn</h2>
+                            </div>
+                            <p class="text-right text-white font-black text-xl shrink-0">300.000đ</p>
+                        </div>
+                        <div class="space-y-3 mb-6">
+                            <div class="flex items-center gap-3 text-sm text-zinc-300"><span class="w-12 text-rose-200 font-bold">16:30</span><span class="h-px flex-1 bg-rose-500/25"></span><span class="flex-1">Lên tàu Waterbus</span></div>
+                            <div class="flex items-center gap-3 text-sm text-zinc-300"><span class="w-12 text-orange-200 font-bold">18:30</span><span class="h-px flex-1 bg-orange-500/25"></span><span class="flex-1">Ăn tối ven sông</span></div>
+                            <div class="flex items-center gap-3 text-sm text-zinc-300"><span class="w-12 text-violet-200 font-bold">20:00</span><span class="h-px flex-1 bg-violet-500/25"></span><span class="flex-1">Dạo Bến Bạch Đằng</span></div>
+                        </div>
+                        <button onclick="window.openComboDetail(9)" class="interactive-btn secondary-action w-full font-extrabold py-3.5 rounded-2xl">
+                            Xem chi tiết
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- BẮT MẠCH CẢM XÚC -->
-        <section id="mood-quiz-section" class="py-20 relative overflow-hidden bg-[#0f0f13] border-b border-white/5">
-            <div class="absolute top-1/2 left-0 w-72 h-72 bg-rose-500/10 rounded-full blur-[100px] -translate-y-1/2 pointer-events-none"></div>
-            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                <h2 class="text-4xl md:text-5xl font-extrabold mb-4 text-white">Hôm nay bạn đang <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-rose-400">Feel</span> thế nào?</h2>
-                <p class="text-gray-400 mb-10 text-lg">Chọn một "Vibe", Bộ gợi ý DatePlanner sẽ chọn cho bạn 1 lộ trình hợp mood để không phải suy nghĩ!</p>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-12">
-                    <button onclick="getMoodRecommendation('chill')" class="group glass-panel p-6 rounded-3xl hover:bg-white/10 transition border border-white/10 hover:border-blue-400/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] flex flex-col items-center justify-center">
-                        <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition"><i class="fa-solid fa-mug-hot text-3xl text-blue-400"></i></div>
-                        <h3 class="font-bold text-white text-lg">Đang sầu, cần Chill</h3><p class="text-xs text-gray-500 mt-2">Cà phê, ngắm cảnh</p>
+        <!-- Mood Quiz -->
+        <section id="mood-quiz-section" class="section-mood py-24 relative overflow-hidden border-b border-white/[0.06]">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div class="max-w-3xl mb-10">
+                    <p class="section-eyebrow mb-3">B&#7855;t m&#7841;ch c&#7843;m x&#250;c</p>
+                    <h2 class="text-4xl md:text-6xl font-black mb-5 text-white tracking-tight leading-[0.98]">Mood h&#244;m nay l&#224; g&#236;?</h2>
+                    <p class="text-zinc-300 text-base md:text-xl font-medium">Ch&#7885;n vibe, DatePlanner ch&#7889;t k&#232;o. &#205;t ngh&#297;, nhi&#7873;u vui.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-12">
+                    <button onclick="getMoodRecommendation('chill')" class="interactive-btn mood-chip mood-card mood-chill group premium-panel p-5 rounded-2xl text-left">
+                        <span class="selected-mark absolute top-4 right-4 text-xs font-black text-sky-100 bg-sky-400/20 border border-sky-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
+                        <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-mug-hot"></i></div>
+                        <h3 class="font-black text-white text-xl">Chill mode</h3><p class="mood-microcopy text-sm mt-1 font-semibold">T&#7855;t n&#227;o, b&#7853;t healing.</p>
                     </button>
-                    <button onclick="getMoodRecommendation('active')" class="group glass-panel p-6 rounded-3xl hover:bg-white/10 transition border border-white/10 hover:border-orange-400/50 hover:shadow-[0_0_30px_rgba(249,115,22,0.3)] flex flex-col items-center justify-center">
-                        <div class="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition"><i class="fa-solid fa-person-running text-3xl text-orange-400"></i></div>
-                        <h3 class="font-bold text-white text-lg">Năng động, quậy</h3><p class="text-xs text-gray-500 mt-2">Vận động, chèo SUP</p>
+                    <button onclick="getMoodRecommendation('active')" class="interactive-btn mood-chip mood-card mood-active group premium-panel p-5 rounded-2xl text-left">
+                        <span class="selected-mark absolute top-4 right-4 text-xs font-black text-orange-100 bg-orange-400/20 border border-orange-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
+                        <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-bolt"></i></div>
+                        <h3 class="font-black text-white text-xl">Qu&#7849;y nh&#7865;</h3><p class="mood-microcopy text-sm mt-1 font-semibold">N&#259;ng pin, l&#234;n mood.</p>
                     </button>
-                    <button onclick="getMoodRecommendation('romantic')" class="group glass-panel p-6 rounded-3xl hover:bg-white/10 transition border border-white/10 hover:border-rose-400/50 hover:shadow-[0_0_30px_rgba(244,63,94,0.3)] flex flex-col items-center justify-center">
-                        <div class="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition"><i class="fa-solid fa-wine-glass text-3xl text-rose-400"></i></div>
-                        <h3 class="font-bold text-white text-lg">Chanh sả, Lãng mạn</h3><p class="text-xs text-gray-500 mt-2">View đẹp, rượu vang</p>
+                    <button onclick="getMoodRecommendation('romantic')" class="interactive-btn mood-chip mood-card mood-romantic group premium-panel p-5 rounded-2xl text-left">
+                        <span class="selected-mark absolute top-4 right-4 text-xs font-black text-rose-100 bg-rose-400/20 border border-rose-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
+                        <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-heart"></i></div>
+                        <h3 class="font-black text-white text-xl">Date soft</h3><p class="mood-microcopy text-sm mt-1 font-semibold">Nh&#7865; nh&#224;ng m&#224; d&#237;nh.</p>
                     </button>
-                    <button onclick="getMoodRecommendation('fun')" class="group glass-panel p-6 rounded-3xl hover:bg-white/10 transition border border-white/10 hover:border-purple-400/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.3)] flex flex-col items-center justify-center">
-                        <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition"><i class="fa-solid fa-dice text-3xl text-purple-400"></i></div>
-                        <h3 class="font-bold text-white text-lg">Hài hước, Cà khịa</h3><p class="text-xs text-gray-500 mt-2">Boardgame, nặn đất sét</p>
+                    <button onclick="getMoodRecommendation('fun')" class="interactive-btn mood-chip mood-card mood-fun group premium-panel p-5 rounded-2xl text-left">
+                        <span class="selected-mark absolute top-4 right-4 text-xs font-black text-violet-100 bg-violet-400/20 border border-violet-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
+                        <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-user-group"></i></div>
+                        <h3 class="font-black text-white text-xl">H&#7897;i b&#7841;n</h3><p class="mood-microcopy text-sm mt-1 font-semibold">R&#7911; l&#224; &#273;i, kh&#244;ng drama.</p>
                     </button>
                 </div>
-                <div id="mood-result-container" class="hidden max-w-4xl mx-auto transform transition-all duration-500"></div>
+                <div id="mood-result-container" class="hidden max-w-6xl mx-auto transform transition-all duration-500"></div>
             </div>
         </section>
 
         <!-- TOP 5 TRENDING SECTION -->
-        <section id="trending-section" class="py-20 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-96 h-96 bg-rose-600/10 rounded-full blur-[100px] -mr-20 -mt-20 pointer-events-none"></div>
+        <section id="trending-section" class="section-trending py-20 relative overflow-hidden">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                <div class="flex flex-col md:flex-row justify-between items-end mb-10 gap-4 border-b border-white/5 pb-6">
+                <div class="flex flex-col md:flex-row justify-between items-end mb-10 gap-4 border-b border-white/[0.06] pb-6">
                     <div>
-                        <h2 class="text-4xl font-extrabold mb-2 flex items-center">
-                            <i class="fa-solid fa-fire-flame-curved text-orange-500 mr-4 animate-pulse"></i> 
-                            <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-500">Top 5 Lộ Trình Trending</span>
+                        <p class="section-eyebrow mb-3">Đang được chọn nhiều</p>
+                        <h2 class="text-3xl md:text-5xl font-black mb-3 text-white tracking-tight">
+                            Top 5 Trending
                         </h2>
-                        <p class="text-gray-400 text-lg">Được giới trẻ Sài Gòn săn đón và chốt kèo nhiều nhất tuần qua!</p>
+                        <p class="text-zinc-300 text-base md:text-lg">Các lộ trình có lượt nhận voucher demo cao nhất.</p>
                     </div>
                     <div class="text-xs font-bold text-gray-300 bg-white/5 px-4 py-2.5 rounded-full border border-white/10 flex items-center backdrop-blur-md">
-                        <span class="w-2.5 h-2.5 bg-green-500 rounded-full mr-2.5 animate-ping"></span> Live Updates
+                        <span class="w-2 h-2 bg-green-400 rounded-full mr-2.5"></span> Realtime demo
                     </div>
                 </div>
                 <div id="trending-grid" class="trending-carousel flex overflow-x-auto pb-10 hide-scrollbar px-2 pt-4"></div>
@@ -263,22 +865,24 @@
         </section>
 
         <!-- KHÁM PHÁ (LIST ALL) -->
-        <section id="combos" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-4xl font-extrabold mb-4">Khám Phá Toàn Bộ <span class="text-primary">15+ Lộ Trình Demo</span></h2>
-                <p class="text-gray-400 text-lg">Đa dạng khu vực, đối tượng và ngân sách. Lựa chọn là ở bạn!</p>
+        <section id="combos" class="section-combos py-20 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-7xl mx-auto">
+            <div class="mb-12 max-w-2xl">
+                <p class="section-eyebrow mb-3">Route library</p>
+                <h2 class="text-3xl md:text-5xl font-black mb-4 text-white tracking-tight">Lộ trình đi chơi tại TP.HCM</h2>
+                <p class="text-zinc-300 text-base md:text-lg">Lọc nhanh theo kiểu đi chơi và khu vực.</p>
             </div>
-            <div class="flex flex-col lg:flex-row items-center justify-between gap-6 mb-16 glass-panel p-6 rounded-[2rem] shadow-2xl">
+            <div class="flex flex-col lg:flex-row items-center justify-between gap-6 mb-12 premium-panel p-4 rounded-3xl">
                 <div class="flex flex-wrap justify-center lg:justify-start gap-3" id="filter-buttons">
-                    <button onclick="filterCombosCategory('all')" class="filter-btn active btn-gradient text-white px-7 py-3 rounded-full text-sm font-bold transition border border-transparent shadow-lg">Tất cả</button>
-                    <button onclick="filterCombosCategory('couple')" class="filter-btn bg-white/5 hover:bg-white/10 text-gray-300 px-7 py-3 rounded-full text-sm font-bold transition border border-white/10">👫 Cặp đôi</button>
-                    <button onclick="filterCombosCategory('group')" class="filter-btn bg-white/5 hover:bg-white/10 text-gray-300 px-7 py-3 rounded-full text-sm font-bold transition border border-white/10">👯‍♀️ Hội nhóm</button>
-                    <button onclick="filterCombosCategory('budget')" class="filter-btn bg-white/5 hover:bg-white/10 text-gray-300 px-7 py-3 rounded-full text-sm font-bold transition border border-white/10">💸 Bình dân</button>
-                    <button onclick="filterCombosCategory('premium')" class="filter-btn bg-white/5 hover:bg-white/10 text-gray-300 px-7 py-3 rounded-full text-sm font-bold transition border border-white/10">💎 Sang chảnh</button>
+                    <button onclick="filterCombosCategory('all')" class="filter-btn filter-chip interactive-btn active px-5 py-2.5 rounded-full text-sm font-bold">Tất cả</button>
+                    <button onclick="filterCombosCategory('couple')" class="filter-btn filter-chip interactive-btn px-5 py-2.5 rounded-full text-sm font-bold">Cặp đôi</button>
+                    <button onclick="filterCombosCategory('group')" class="filter-btn filter-chip interactive-btn px-5 py-2.5 rounded-full text-sm font-bold">Hội nhóm</button>
+                    <button onclick="filterCombosCategory('budget')" class="filter-btn filter-chip interactive-btn px-5 py-2.5 rounded-full text-sm font-bold">Bình dân</button>
+                    <button onclick="filterCombosCategory('premium')" class="filter-btn filter-chip interactive-btn px-5 py-2.5 rounded-full text-sm font-bold">Premium</button>
                 </div>
                 <div class="relative w-full lg:w-auto shrink-0">
-                    <select id="district-filter" onchange="filterByDistrict()" class="w-full bg-[#0a0a0a] text-white border border-gray-700 rounded-full px-6 py-3.5 focus:outline-none focus:border-rose-500 appearance-none pr-10 cursor-pointer text-sm font-bold hover:bg-[#111] transition shadow-inner">
-                        <option value="all">📍 Tất cả các Quận</option>
+                    <select id="district-filter" onchange="filterByDistrict()" class="w-full premium-input px-5 py-3 appearance-none pr-10 cursor-pointer text-sm font-bold">
+                        <option value="all">Tất cả khu vực</option>
                         <option value="quan1">Quận 1 (Trung tâm)</option>
                         <option value="quan2">Quận 2 (Thủ Đức/Thảo Điền)</option>
                         <option value="quan5">Quận 5 (Chợ Lớn)</option>
@@ -290,155 +894,214 @@
                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-rose-500"><i class="fa-solid fa-chevron-down text-xs"></i></div>
                 </div>
             </div>
-            <div id="combo-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10"></div>
+            <p id="combo-count-summary" class="mb-6 text-sm font-bold text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-4 py-2 inline-flex items-center">
+                Đang hiển thị các lộ trình phù hợp
+            </p>
+            <div id="combo-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7"></div>
+            </div>
         </section>
 
-        <!-- VÒNG QUAY NHÂN PHẨM -->
-        <section id="random" class="py-24 relative overflow-hidden border-y border-white/5">
-            <div class="absolute inset-0 bg-gradient-to-r from-purple-900/10 via-transparent to-rose-900/10"></div>
+        <!-- GỢI Ý NHANH -->
+        <section id="random" class="section-random py-24 relative overflow-hidden border-y border-white/[0.06]">
             <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
-                <i class="fa-solid fa-dice text-7xl text-transparent bg-clip-text bg-gradient-to-br from-rose-400 to-purple-500 mb-6 drop-shadow-[0_0_20px_rgba(244,63,94,0.5)]"></i>
-                <h2 class="text-4xl md:text-5xl font-extrabold mb-5 text-white">Vòng Quay Nhân Phẩm</h2>
-                <p class="text-gray-300 mb-10 text-lg">Đã bấm lọc, đã chọn mood mà vẫn không biết đi đâu? Vậy thì nhắm mắt lại và để vũ trụ Date Planner quyết định nhé!</p>
-                <div class="glass-panel p-10 md:p-12 rounded-[2.5rem] mb-10 min-h-[250px] flex items-center justify-center relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/20">
-                    <h3 id="random-result" class="text-2xl md:text-4xl font-extrabold text-gray-500">Nhấn nút bên dưới để quay...</h3>
+                <p class="section-eyebrow mb-3">Vòng Quay Nhân Phẩm</p>
+                <h2 class="text-3xl md:text-5xl font-black mb-5 text-white tracking-tight">Gợi ý nhanh</h2>
+                <p class="text-zinc-300 mb-10 text-base md:text-lg">Khi cả nhóm vẫn chưa chốt, để DatePlanner chọn một lộ trình đủ hợp lý.</p>
+                <div class="premium-panel p-8 md:p-10 rounded-[1.75rem] mb-8 min-h-[250px] flex items-center justify-center relative overflow-hidden border-orange-500/20">
+                    <h3 id="random-result" class="text-2xl md:text-4xl font-black text-zinc-400 tracking-tight">Nhấn để nhận gợi ý</h3>
                     <div id="random-details" class="hidden mt-4 text-gray-200 w-full"></div>
                 </div>
-                <button onclick="startRandomizer()" id="spin-btn" class="btn-gradient text-white font-black py-4 md:py-5 px-14 rounded-full text-xl transition shadow-[0_0_30px_rgba(244,63,94,0.5)] hover:scale-105"><i class="fa-solid fa-rotate mr-2"></i> BẮT ĐẦU QUAY</button>
+                <button onclick="startRandomizer()" id="spin-btn" class="interactive-btn primary-action font-black py-4 px-10 rounded-full text-lg"><i class="fa-solid fa-shuffle mr-2"></i>Gợi ý cho tôi</button>
             </div>
         </section>
 
         <!-- TẠO THIỆP MỜI -->
-        <section id="invite-maker" class="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="invite-maker" class="section-invite py-24 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-7xl mx-auto">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                 <div>
-                    <div class="inline-block bg-gradient-to-r from-rose-500 to-purple-600 text-white px-4 py-1.5 rounded-full text-xs font-black mb-5 shadow-lg tracking-widest uppercase">Tính năng MỚI</div>
-                    <h2 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">Gửi Lời Mời <br><span class="text-gradient">Không Thể Chối Từ</span></h2>
-                    <p class="text-gray-400 mb-10 text-lg leading-relaxed">Bạn đã nhắm được lộ trình ưng ý nhưng chưa biết mở lời thế nào? Hãy tạo ngay một chiếc thiệp điện tử cực "trendy" để gửi qua Zalo/Mess nhé!</p>
-                    <div class="glass-panel p-8 md:p-10 rounded-[2.5rem] border-white/10 shadow-2xl relative overflow-hidden">
-                        <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-purple-600/20 blur-3xl rounded-full"></div>
+                    <p class="section-eyebrow mb-3">E-invite Creator</p>
+                    <h2 class="text-3xl md:text-5xl font-black mb-6 leading-tight tracking-tight">Tạo lời mời gọn, đẹp, dễ gửi.</h2>
+                    <p class="text-zinc-300 mb-10 text-base md:text-lg leading-relaxed">Chọn lộ trình, viết một câu ngắn, DatePlanner dựng preview e-card để gửi qua Zalo hoặc Messenger.</p>
+                    <div class="premium-panel p-6 md:p-8 rounded-[1.75rem] relative overflow-hidden border-violet-500/20">
                         <div class="mb-6 relative z-10">
-                            <label class="block text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">Tên người ấy (Crush/Bạn thân)</label>
-                            <input type="text" id="inv-name" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-rose-500 transition shadow-inner font-medium text-lg" placeholder="Nhập tên vào đây..." onkeyup="updateInvitePreview()">
+                            <label class="block text-sm font-bold text-gray-300 mb-2">Tên người nhận</label>
+                            <input type="text" id="inv-name" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Nhập tên..." onkeyup="updateInvitePreview()">
                         </div>
                         <div class="mb-6 relative z-10">
-                            <label class="block text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">Chọn lộ trình mời đi chơi</label>
-                            <select id="inv-combo" class="w-full bg-[#050505] text-white border border-gray-800 rounded-2xl px-6 py-4 focus:outline-none focus:border-rose-500 transition shadow-inner font-medium text-lg appearance-none cursor-pointer" onchange="updateInvitePreview()"></select>
+                            <label class="block text-sm font-bold text-gray-300 mb-2">Chọn lộ trình</label>
+                            <select id="inv-combo" class="w-full premium-input px-5 py-4 font-medium text-lg appearance-none cursor-pointer" onchange="updateInvitePreview()"></select>
+                        </div>
+                        <div class="mb-6 relative z-10">
+                            <label class="block text-sm font-bold text-gray-300 mb-2">Thời gian hẹn</label>
+                            <input type="datetime-local" id="inv-date" class="w-full premium-input px-5 py-4 font-medium text-lg" onchange="updateInvitePreview()" onkeyup="updateInvitePreview()">
                         </div>
                         <div class="mb-10 relative z-10">
                             <div class="flex justify-between items-end mb-2">
-                                <label class="block text-sm font-bold text-gray-300 uppercase tracking-wide">Lời nhắn mỏng manh</label>
-                                <button onclick="randomizeMessage()" class="text-xs text-white bg-white/10 hover:bg-rose-500 hover:border-transparent border border-white/20 px-3 py-1.5 rounded-full transition flex items-center shadow-sm font-bold"><i class="fa-solid fa-dice mr-1.5"></i> Gợi ý câu thả thính</button>
+                                <label class="block text-sm font-bold text-gray-300">Lời nhắn</label>
+                                <button onclick="randomizeMessage()" class="interactive-btn secondary-action text-xs px-3 py-1.5 rounded-full flex items-center font-bold"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Gợi ý câu</button>
                             </div>
-                            <input type="text" id="inv-message" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-rose-500 transition shadow-inner font-medium text-lg" placeholder="Cuối tuần này rảnh không..." value="Cuối tuần này rảnh không, đi đu đưa cùng tớ nhé!" onkeyup="updateInvitePreview()">
+                            <input type="text" id="inv-message" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Cuối tuần này rảnh không..." value="Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!" onkeyup="updateInvitePreview()">
                         </div>
-                        <button onclick="copyInviteText()" id="copy-inv-btn" class="w-full bg-white hover:bg-gray-200 text-black font-black py-4.5 rounded-2xl transition shadow-[0_0_20px_rgba(255,255,255,0.15)] flex items-center justify-center text-xl relative z-10 h-16">
-                            <i class="fa-regular fa-copy mr-2"></i> Sao Chép Thiệp Mời
+                        <button onclick="copyInviteText()" id="copy-inv-btn" class="interactive-btn primary-action w-full font-black py-4 rounded-2xl flex items-center justify-center text-lg relative z-10">
+                            <i class="fa-regular fa-copy mr-2"></i> Copy l&#7901;i m&#7901;i
                         </button>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 relative z-10">
+                            <button onclick="downloadInviteImage()" id="download-inv-btn" class="interactive-btn invite-action-btn font-black py-4 rounded-2xl flex items-center justify-center text-sm md:text-base">
+                                <i class="fa-solid fa-download mr-2"></i>Lưu ảnh PNG
+                            </button>
+                            <button onclick="shareInviteImage()" id="share-inv-btn" class="interactive-btn invite-action-btn font-black py-4 rounded-2xl flex items-center justify-center text-sm md:text-base">
+                                <i class="fa-solid fa-share-nodes mr-2"></i>Chia sẻ
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
                 <div class="flex justify-center flex-col items-center">
-                    <p class="text-sm text-gray-500 mb-5 uppercase tracking-widest font-bold"><i class="fa-solid fa-eye mr-2"></i>Bản xem trước E-Card</p>
-                    <div class="bg-gradient-to-br from-rose-500 via-purple-600 to-orange-400 p-1 w-full max-w-md rounded-[2.5rem] shadow-[0_20px_50px_rgba(244,63,94,0.3)] transform rotate-2 hover:rotate-0 transition duration-500">
-                        <div class="bg-[#0f0f13] rounded-[38px] p-8 md:p-10 relative overflow-hidden">
-                            <div class="absolute top-0 right-0 w-48 h-48 bg-purple-500/20 rounded-full blur-[50px] pointer-events-none"></div>
+                    <p class="text-sm text-gray-500 mb-5 font-bold"><i class="fa-solid fa-eye mr-2"></i>Preview e-card</p>
+                    <div class="w-full max-w-md flex justify-end mb-4">
+                        <div class="invite-glass-pill rounded-full p-1 flex items-center gap-1">
+                            <button type="button" id="invite-mode-story" onclick="setInviteCardMode('story')" class="invite-mode-btn active interactive-btn px-4 py-2 rounded-full text-xs font-black">Story</button>
+                            <button type="button" id="invite-mode-square" onclick="setInviteCardMode('square')" class="invite-mode-btn interactive-btn px-4 py-2 rounded-full text-xs font-black">Square</button>
+                        </div>
+                    </div>
+                    <div class="invite-card-shell">
+                        <div id="invite-card-preview" class="invite-card-preview is-story" data-mode="story">
+                            <img id="inv-card-bg" class="invite-card-bg" src="./giosongSG.jpg" alt="DatePlanner invite background" crossorigin="anonymous" loading="eager" decoding="async" onerror="window.handleImageFallback(this)">
+                            <div class="invite-card-overlay"></div>
+                            <div class="invite-card-shine"></div>
+                            <div class="invite-card-content">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="invite-glass-pill inline-flex items-center gap-2 rounded-full px-3.5 py-2">
+                                        <img src="./logodateplanner.jpg" class="w-7 h-7 rounded-full object-cover bg-white" alt="DatePlanner" crossorigin="anonymous" onerror="window.handleImageFallback(this)">
+                                        <span class="text-xs font-black tracking-widest uppercase">Date Planner</span>
+                                    </div>
+                                    <div class="invite-glass-pill w-11 h-11 rounded-2xl flex items-center justify-center text-rose-100">
+                                        <i class="fa-solid fa-heart"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-auto">
+                                    <div class="invite-glass-pill inline-flex items-center gap-2 rounded-full px-3 py-2 mb-4 text-xs font-bold text-orange-100">
+                                        <i class="fa-solid fa-calendar-days text-orange-200"></i>
+                                        <span id="prev-date">Chọn thời gian hẹn</span>
+                                    </div>
+                                    <p class="text-[10px] text-rose-100 font-black uppercase tracking-[0.28em] mb-3">Gửi đến</p>
+                                    <h3 id="prev-name" class="text-4xl md:text-5xl font-black text-white leading-none tracking-tight drop-shadow-lg">Tên người ấy...</h3>
+                                    <p id="prev-message" class="text-white/90 italic mt-6 mb-7 text-xl md:text-2xl leading-snug font-semibold drop-shadow-md">"Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!"</p>
+                                    <div class="invite-glass-pill p-5 rounded-3xl mb-6">
+                                        <span class="text-[10px] text-orange-100 font-black uppercase tracking-widest block mb-2">Lộ trình DatePlanner</span>
+                                        <h4 id="prev-combo-title" class="font-black text-white text-2xl mb-2 leading-tight">Vui lòng chọn lộ trình</h4>
+                                        <p id="prev-combo-address" class="text-sm text-white/78 font-semibold leading-relaxed"><i class="fa-solid fa-location-dot text-rose-300 mr-2"></i>Địa điểm sẽ hiển thị ở đây</p>
+                                    </div>
+                                    <div class="flex items-center justify-between gap-4">
+                                        <div class="bg-white text-black px-5 py-3 rounded-2xl font-black text-sm shadow-lg">Ready for our next adventure?</div>
+                                        <div class="invite-glass-pill w-12 h-12 rounded-2xl flex items-center justify-center text-orange-100">
+                                            <img src="./logodateplanner.jpg" class="w-8 h-8 rounded-full object-cover bg-white" alt="DatePlanner" crossorigin="anonymous" onerror="window.handleImageFallback(this)">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hidden premium-panel w-full max-w-md rounded-[2rem] overflow-hidden border-rose-500/20">
+                        <div class="p-8 md:p-10 relative overflow-hidden">
                             <div class="flex justify-between items-start mb-8 border-b border-white/10 pb-6 relative z-10">
                                 <div>
-                                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">Thư mời đặc biệt gửi đến</span>
-                                    <h3 id="prev-name" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-300 leading-tight">Tên người ấy...</h3>
+                                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">Gửi đến</span>
+                                    <h3 id="legacy-prev-name" class="text-3xl font-black text-white leading-tight">Tên người ấy...</h3>
                                 </div>
-                                <div class="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-inner"><i class="fa-solid fa-envelope-open-text text-2xl text-rose-400"></i></div>
+                                <div class="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10"><i class="fa-solid fa-envelope-open-text text-xl text-rose-300"></i></div>
                             </div>
-                            <p id="prev-message" class="text-gray-200 italic mb-8 relative z-10 transition-all duration-300 text-xl leading-relaxed font-medium">"Cuối tuần này rảnh không, đi đu đưa cùng tớ nhé!"</p>
-                            <div class="glass-panel p-5 rounded-2xl mb-8 relative z-10 border border-white/10 shadow-lg">
-                                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2">Lộ trình Date Planner đề xuất</span>
-                                <h4 id="prev-combo-title" class="font-extrabold text-white text-xl mb-2">Vui lòng chọn lộ trình</h4>
-                                <p id="prev-combo-address" class="text-sm text-gray-400 font-medium"><i class="fa-solid fa-location-dot text-rose-400 mr-2"></i>Địa điểm sẽ hiển thị ở đây</p>
+                            <p id="legacy-prev-message" class="text-gray-200 italic mb-8 relative z-10 transition-all duration-300 text-xl leading-relaxed font-medium">"Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!"</p>
+                            <div class="bg-rose-500/10 p-5 rounded-2xl mb-8 relative z-10 border border-rose-500/20">
+                                <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2">Lộ trình DatePlanner</span>
+                                <h4 id="legacy-prev-combo-title" class="font-extrabold text-white text-xl mb-2">Vui lòng chọn lộ trình</h4>
+                                <p id="legacy-prev-combo-address" class="text-sm text-gray-400 font-medium"><i class="fa-solid fa-location-dot text-rose-400 mr-2"></i>Địa điểm sẽ hiển thị ở đây</p>
                             </div>
                             <div class="flex gap-4 relative z-10">
-                                <div class="flex-1 btn-gradient text-center py-3.5 rounded-xl text-white font-black text-sm shadow-lg cursor-pointer hover:scale-105 transition">Đồng ý đi thôi 🥰</div>
-                                <div class="flex-1 bg-[#1a1a24] border border-gray-800 text-center py-3.5 rounded-xl text-gray-600 font-bold text-sm line-through cursor-not-allowed">Để lần sau 💔</div>
+                                <div class="flex-1 bg-white text-black text-center py-3.5 rounded-xl font-black text-sm">Đi thôi</div>
+                                <div class="flex-1 bg-white/5 border border-white/10 text-center py-3.5 rounded-xl text-gray-500 font-bold text-sm">Để sau</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            </div>
         </section>
 
-        <footer class="bg-[#050505] border-t border-white/10 py-12 text-center mt-10 relative">
-            <p class="text-gray-400 font-medium text-lg">DatePlanner © 2026 — Nền tảng gợi ý combo đi chơi tại TP.HCM.</p>
-            <p class="text-gray-600 text-xs mt-2 font-medium max-w-2xl mx-auto px-4">Dữ liệu địa điểm, giá và ưu đãi trong bản demo là thông tin tham khảo/mô phỏng, cần được xác nhận lại khi triển khai thực tế.</p>
-            <button onclick="openDataPolicyModal()" class="block mx-auto mt-5 text-sm text-rose-300 hover:text-white transition font-bold underline underline-offset-4 decoration-rose-500/50"><i class="fa-solid fa-lock mr-1.5"></i>Chính sách dữ liệu</button>
-            <button onclick="toggleAdminView()" class="mt-8 text-xs text-white/40 hover:text-white transition border border-white/10 hover:border-white/40 px-5 py-2 rounded-full backdrop-blur-sm font-bold uppercase tracking-widest"><i class="fa-solid fa-shield-halved mr-1.5"></i> Quản trị viên (Admin)</button>
+        <div id="invite-toast" class="invite-toast glass-panel border border-rose-400/25 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-2xl">Đã copy lời mời ✨</div>
+
+        <footer class="section-footer border-t border-white/[0.06] py-10 text-center mt-8 relative">
+            <p class="text-slate-200 font-medium">DatePlanner © 2026. Local guide demo tại TP.HCM.</p>
+            <p class="text-slate-400 text-xs mt-2 font-medium max-w-2xl mx-auto px-4">Dữ liệu địa điểm, giá và ưu đãi trong bản demo là thông tin tham khảo/mô phỏng, cần được xác nhận lại khi triển khai thực tế.</p>
+            <button onclick="openDataPolicyModal()" class="block mx-auto mt-5 text-sm text-sky-300 hover:text-white transition font-bold underline underline-offset-4 decoration-sky-400/30"><i class="fa-solid fa-lock mr-1.5"></i>Chính sách dữ liệu</button>
+            <button onclick="toggleAdminView()" class="interactive-btn secondary-action mt-7 text-xs px-5 py-2 rounded-full font-bold">Admin</button>
         </footer>
 
         <!-- THÔNG BÁO REAL-TIME -->
         <div id="fomo-toast" class="fixed bottom-24 left-6 z-50 transform -translate-x-[150%] transition-transform duration-500 ease-out cursor-pointer hover:scale-105" onclick="this.classList.add('-translate-x-[150%]')"></div>
 
         <!-- MODAL CHI TIẾT -->
-        <div id="detail-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4 py-6">
-            <div class="bg-[#0f0f13] border border-white/10 rounded-[2rem] max-w-lg w-full overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] shadow-[0_0_50px_rgba(0,0,0,0.8)]">
-                <div class="relative h-60 md:h-72 shrink-0">
-                    <img id="detail-img" src="" class="w-full h-full object-cover opacity-90" alt="Combo Image">
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#0f0f13] via-[#0f0f13]/40 to-transparent"></div>
-                    <button onclick="closeDetailModal()" class="absolute top-5 right-5 bg-black/40 backdrop-blur-md text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-rose-500 transition border border-white/20"><i class="fa-solid fa-xmark text-lg"></i></button>
-                    <div class="absolute bottom-6 left-8 right-8 flex items-center gap-3 flex-wrap">
-                        <div id="detail-target" class="inline-block bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-white border border-white/20 shadow-sm uppercase tracking-wider"></div>
-                        <div id="detail-category" class="inline-block btn-gradient px-4 py-1.5 rounded-full text-xs font-bold text-white shadow-sm uppercase tracking-wider"></div>
-                        <h3 id="detail-title" class="text-3xl md:text-4xl font-black text-white leading-tight w-full mt-3 drop-shadow-lg"></h3>
+        <div id="detail-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4 py-6">
+            <div class="premium-panel rounded-[1.75rem] max-w-3xl w-full overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[92vh]">
+                <div class="relative h-72 md:h-96 shrink-0">
+                    <img id="detail-img" src="" class="w-full h-full object-cover opacity-90" alt="Combo Image" loading="lazy" decoding="async" onerror="window.handleImageFallback(this)">
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#0b0d10] via-[#0b0d10]/40 to-transparent"></div>
+                    <button onclick="closeDetailModal()" class="interactive-btn secondary-action absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark text-lg"></i></button>
+                    <div class="absolute bottom-7 left-7 right-7 flex items-center gap-3 flex-wrap">
+                        <div id="detail-target" class="inline-block bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-bold text-white border border-white/10"></div>
+                        <div id="detail-category" class="inline-block bg-white text-black px-3 py-1.5 rounded-full text-xs font-black"></div>
+                        <h3 id="detail-title" class="text-3xl md:text-5xl font-black text-white leading-tight w-full mt-3 tracking-tight"></h3>
                     </div>
                 </div>
-                <div class="p-8 overflow-y-auto flex-1 custom-scrollbar bg-[#0f0f13]">
+                <div class="p-6 md:p-8 overflow-y-auto flex-1 custom-scrollbar bg-[#0b0d10]">
                     <div id="detail-desc" class="text-gray-300 mb-8 flex items-start text-sm md:text-base leading-relaxed font-medium"></div>
-                    <div class="border-b border-gray-800 mb-8"></div>
-                    <h4 class="font-extrabold text-xl mb-6 text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-purple-400 flex items-center uppercase tracking-wide"><i class="fa-solid fa-route text-rose-500 mr-3"></i> Lộ trình chi tiết</h4>
-                    <div id="detail-timeline" class="border-l-2 border-gray-800 pl-6 ml-3 space-y-8"></div>
+                    <div class="border-b border-white/10 mb-8"></div>
+                    <h4 class="font-black text-xl mb-6 text-white flex items-center tracking-tight"><i class="fa-solid fa-route text-rose-300 mr-3"></i> Lộ trình chi tiết</h4>
+                    <div id="detail-timeline" class="border-l border-white/10 pl-6 ml-3 space-y-7"></div>
                 </div>
-                <div class="p-6 border-t border-gray-800 bg-[#0a0a0a] flex justify-between items-center shrink-0 rounded-b-[2rem]">
+                <div class="p-5 md:p-6 border-t border-white/10 bg-[#08090b] flex flex-col sm:flex-row justify-between gap-4 sm:items-center shrink-0 rounded-b-[1.75rem]">
                     <div>
-                        <p class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Dự kiến / Người</p>
+                        <p class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Dự kiến / người</p>
                         <span id="detail-price" class="text-3xl font-black text-white"></span>
                     </div>
-                    <button onclick="openLeadForm()" class="btn-gradient text-white font-black py-4 px-8 rounded-xl transition shadow-[0_0_20px_rgba(244,63,94,0.4)] hover:shadow-[0_0_30px_rgba(244,63,94,0.6)] hover:scale-105" id="detail-btn-voucher"><i class="fa-solid fa-ticket mr-2"></i>Lấy voucher ưu đãi demo</button>
+                    <button onclick="openLeadForm()" class="interactive-btn primary-action font-black py-4 px-7 rounded-xl" id="detail-btn-voucher"><i class="fa-solid fa-ticket mr-2"></i>Lấy voucher ưu đãi demo</button>
                 </div>
             </div>
         </div>
 
         <!-- FORM THU THẬP DATA -->
-        <div id="lead-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[105] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4">
-            <div class="bg-[#0f0f13] border border-white/10 rounded-[2rem] max-w-md w-full p-10 text-left transform scale-95 transition-transform duration-300 shadow-[0_0_60px_rgba(0,0,0,0.8)] relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-48 h-48 bg-rose-500/20 rounded-full blur-[60px] pointer-events-none -mt-10 -mr-10"></div>
-                <button onclick="closeLeadForm()" class="absolute top-5 right-5 text-gray-500 hover:text-white bg-white/5 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/10"><i class="fa-solid fa-xmark"></i></button>
-                <div class="text-center mb-8 relative z-10">
-                    <div class="w-20 h-20 bg-gradient-to-br from-rose-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-[0_0_30px_rgba(244,63,94,0.4)]"><i class="fa-solid fa-gift text-3xl text-white"></i></div>
-                    <h3 class="text-3xl font-extrabold text-white mb-2 leading-tight" id="lead-form-title">Nhận voucher ưu đãi demo</h3>
-                    <p class="text-gray-400 text-sm leading-relaxed font-medium">Để lại thông tin, DatePlanner sẽ gửi mã voucher ưu đãi demo/pilot từ địa điểm tham khảo và lộ trình chi tiết về email của bạn.</p>
+        <div id="lead-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[105] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4">
+            <div class="premium-panel rounded-[1.75rem] max-w-md w-full p-7 md:p-8 text-left transform scale-95 transition-transform duration-300 relative overflow-hidden">
+                <button onclick="closeLeadForm()" class="interactive-btn secondary-action absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                <div class="mb-8 relative z-10">
+                    <div class="w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center mb-5"><i class="fa-solid fa-ticket text-xl"></i></div>
+                    <h3 class="text-3xl font-black text-white mb-3 leading-tight tracking-tight" id="lead-form-title">Nhận voucher ưu đãi demo</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed font-medium">Tên, SĐT và email giúp DatePlanner gửi mã voucher, nhắc lại lộ trình và đối soát ưu đãi demo với địa điểm.</p>
                 </div>
                 <div class="space-y-5 relative z-10">
-                    <div><input type="text" id="lead-name" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 transition shadow-inner font-medium" placeholder="Họ và Tên của bạn"></div>
-                    <div><input type="tel" id="lead-phone" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 transition shadow-inner font-medium" placeholder="Số điện thoại (Zalo)"></div>
-                    <div><input type="email" id="lead-email" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 transition shadow-inner font-medium" placeholder="Email nhận Voucher"></div>
+                    <div><input type="text" id="lead-name" class="w-full premium-input px-5 py-4 font-medium" placeholder="Họ và tên"></div>
+                    <div><input type="tel" id="lead-phone" class="w-full premium-input px-5 py-4 font-medium" placeholder="Số điện thoại"></div>
+                    <div><input type="email" id="lead-email" class="w-full premium-input px-5 py-4 font-medium" placeholder="Email nhận voucher"></div>
                     <label for="lead-consent" class="flex items-start gap-3 bg-white/5 border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-rose-500/50 transition">
                         <input type="checkbox" id="lead-consent" required class="mt-1 h-5 w-5 shrink-0 accent-rose-500 cursor-pointer">
                         <span class="text-xs text-gray-300 leading-relaxed font-medium">Tôi đồng ý cho DatePlanner lưu thông tin liên hệ để gửi E-Voucher và đối soát ưu đãi với địa điểm/đối tác trong phạm vi demo/pilot. Dữ liệu không được bán cho bên thứ ba.</span>
                     </label>
-                    <button type="button" onclick="openDataPolicyModal()" class="text-xs text-rose-300 hover:text-white transition font-bold underline underline-offset-4 decoration-rose-500/50"><i class="fa-solid fa-circle-info mr-1.5"></i>Chính sách dữ liệu</button>
+                    <button type="button" onclick="openDataPolicyModal()" class="interactive-btn text-xs text-rose-300 hover:text-white font-bold underline underline-offset-4 decoration-rose-500/50"><i class="fa-solid fa-circle-info mr-1.5"></i>Chính sách dữ liệu</button>
                     <p id="lead-consent-error" class="hidden text-sm text-rose-300 font-semibold leading-relaxed">Bạn vui lòng tick đồng ý để DatePlanner có thể gửi E-Voucher và đối soát ưu đãi trong phạm vi demo/pilot nhé.</p>
                     <input type="hidden" id="lead-combo-id"><input type="hidden" id="lead-combo-title"><input type="hidden" id="lead-combo-discount">
-                    <button id="lead-submit-btn" onclick="submitLead()" aria-disabled="true" class="w-full btn-gradient text-white font-black py-4.5 rounded-2xl transition mt-4 shadow-[0_0_20px_rgba(244,63,94,0.4)] text-lg h-16 opacity-50 cursor-not-allowed"><i class="fa-solid fa-bolt mr-2"></i>Xác Nhận Đặt Kèo</button>
+                    <button id="lead-submit-btn" onclick="submitLead()" aria-disabled="true" class="interactive-btn primary-action w-full font-black py-4 rounded-2xl mt-4 text-lg opacity-50 cursor-not-allowed"><i class="fa-solid fa-ticket mr-2"></i>Nhận mã voucher</button>
                 </div>
             </div>
         </div>
 
         <!-- MODAL CHÍNH SÁCH DỮ LIỆU CÁ NHÂN -->
         <div id="data-policy-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[115] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4 py-6" onclick="closeDataPolicyModal(event)">
-            <div class="bg-[#0f0f13] border border-white/10 rounded-[2rem] max-w-lg w-full p-8 md:p-10 text-left transform scale-95 transition-transform duration-300 shadow-[0_0_60px_rgba(0,0,0,0.8)] relative overflow-hidden" onclick="event.stopPropagation()">
-                <div class="absolute top-0 right-0 w-56 h-56 bg-purple-500/20 rounded-full blur-[70px] pointer-events-none -mt-16 -mr-16"></div>
-                <button onclick="closeDataPolicyModal()" class="absolute top-5 right-5 text-gray-500 hover:text-white bg-white/5 w-9 h-9 rounded-full flex items-center justify-center transition border border-white/10"><i class="fa-solid fa-xmark"></i></button>
+            <div class="premium-panel rounded-[1.75rem] max-w-lg w-full p-8 md:p-10 text-left transform scale-95 transition-transform duration-300 relative overflow-hidden border-sky-500/20" onclick="event.stopPropagation()">
+                <button onclick="closeDataPolicyModal()" class="interactive-btn secondary-action absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                 <div class="relative z-10">
-                    <div class="w-16 h-16 bg-gradient-to-br from-rose-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(244,63,94,0.35)]"><i class="fa-solid fa-user-shield text-2xl text-white"></i></div>
-                    <p class="text-[10px] text-rose-300 font-black uppercase tracking-[0.25em] mb-3">Demo/Pilot</p>
+                    <div class="w-14 h-14 bg-sky-400 text-[#061018] rounded-2xl flex items-center justify-center mb-6"><i class="fa-solid fa-user-shield text-xl"></i></div>
+                    <p class="text-[10px] text-sky-300 font-black uppercase tracking-[0.25em] mb-3">Demo/Pilot</p>
                     <h3 class="text-3xl md:text-4xl font-extrabold text-white mb-4 leading-tight">Chính sách dữ liệu cá nhân</h3>
                     <p class="text-gray-400 text-sm leading-relaxed font-medium mb-7">DatePlanner minh bạch cách dữ liệu được dùng khi bạn nhận voucher ưu đãi demo.</p>
                     <div class="space-y-4">
@@ -458,56 +1121,50 @@
                             <i class="fa-solid fa-trash-can text-blue-300 mt-1"></i>
                             <p class="text-sm text-gray-300 leading-relaxed font-medium">Người dùng có thể yêu cầu xóa dữ liệu khỏi bản demo.</p>
                         </div>
-                        <div class="bg-rose-500/10 border border-rose-500/25 rounded-2xl p-4 flex gap-4">
-                            <i class="fa-solid fa-shield-halved text-rose-300 mt-1"></i>
+                        <div class="bg-sky-500/10 border border-sky-500/25 rounded-2xl p-4 flex gap-4">
+                            <i class="fa-solid fa-shield-halved text-sky-300 mt-1"></i>
                             <p class="text-sm text-gray-200 leading-relaxed font-medium">Nếu triển khai thật, hệ thống cần chính sách bảo mật đầy đủ và cơ chế xác thực/phân quyền.</p>
                         </div>
                     </div>
-                    <button onclick="closeDataPolicyModal()" class="w-full mt-7 bg-white hover:bg-gray-200 text-black font-black py-4 rounded-2xl transition shadow-[0_0_20px_rgba(255,255,255,0.15)]">Đã hiểu</button>
+                    <button onclick="closeDataPolicyModal()" class="interactive-btn secondary-action w-full mt-7 font-black py-4 rounded-2xl">Đã hiểu</button>
                 </div>
             </div>
         </div>
 
         <!-- GIAO DIỆN THÀNH CÔNG VÀ HIỂN THỊ VOUCHER -->
-        <div id="booking-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[110] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4 py-6">
-            <div class="bg-[#0f0f13] border border-white/10 rounded-[2.5rem] max-w-md w-full mx-4 text-center transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_0_60px_rgba(0,0,0,0.8)] relative" id="booking-content">
-                <div class="absolute top-0 left-0 w-full h-48 overflow-hidden pointer-events-none rounded-t-[2.5rem] opacity-50">
-                    <div class="absolute top-6 left-10 text-rose-500 text-4xl animate-bounce"><i class="fa-solid fa-star"></i></div>
-                    <div class="absolute top-10 right-12 text-purple-400 text-3xl animate-pulse"><i class="fa-solid fa-certificate"></i></div>
-                    <div class="absolute top-20 left-1/2 text-orange-400 text-2xl animate-ping"><i class="fa-solid fa-sparkles"></i></div>
-                </div>
+        <div id="booking-modal" class="section-voucher fixed inset-0 bg-black/85 backdrop-blur-md z-[110] hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4 py-6">
+            <div class="premium-panel voucher-premium rounded-[2rem] max-w-md w-full mx-4 text-center transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar relative border-amber-400/30" id="booking-content">
                 <div class="p-10 pb-6 relative z-10">
-                    <div class="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-green-500/30 shadow-[0_0_30px_rgba(34,197,94,0.4)]"><i class="fa-solid fa-check text-5xl text-green-500"></i></div>
-                    <h3 class="text-4xl font-extrabold mb-2 text-white tracking-tight">Thành Công!</h3>
-                    <p class="text-gray-400 font-medium">Cảm ơn <span id="success-user-name" class="font-bold text-white">Bạn</span> đã chọn Date Planner.</p>
+                    <div class="w-16 h-16 bg-amber-400/15 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-amber-300/30"><i class="fa-solid fa-ticket text-3xl text-amber-200"></i></div>
+                    <h3 class="text-4xl font-black mb-2 text-white tracking-tight">Đã tạo voucher</h3>
+                    <p class="text-gray-400 font-medium">Cảm ơn <span id="success-user-name" class="font-bold text-white">bạn</span> đã chọn DatePlanner.</p>
                 </div>
                 <div class="px-8 py-2 relative z-10">
-                    <div class="ticket-cutout bg-gradient-to-b from-gray-900 to-black border border-gray-800 rounded-3xl overflow-hidden shadow-2xl mb-8">
-                        <div class="border-b border-dashed border-gray-700 p-6 bg-[#171717] flex justify-between items-center relative">
-                            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 to-purple-600"></div>
+                    <div class="ticket-cutout bg-[#15151F] border border-orange-500/25 rounded-3xl overflow-hidden mb-8">
+                        <div class="border-b border-dashed border-orange-500/25 p-6 bg-rose-500/10 flex justify-between items-center relative">
                             <div class="text-left">
-                                <span class="text-[10px] uppercase tracking-widest text-gray-500 font-black mb-1.5 block">Voucher pilot</span>
+                                <span class="text-[10px] uppercase tracking-widest text-gray-500 font-black mb-1.5 block">E-voucher demo</span>
                                 <h4 id="success-combo-title" class="font-extrabold text-white truncate max-w-[200px] text-xl"></h4>
                             </div>
-                            <i class="fa-solid fa-qrcode text-5xl text-rose-500/80"></i>
+                            <i class="fa-solid fa-qrcode text-5xl text-orange-200"></i>
                         </div>
-                        <div class="p-8 flex flex-col items-center bg-[#0a0a0a]">
-                            <p class="text-xs text-gray-500 mb-3 uppercase tracking-widest font-bold">Mã Code (Đưa cho thu ngân)</p>
-                            <div class="bg-gray-900 border border-gray-800 rounded-2xl py-4 px-6 mb-5 w-full text-center shadow-inner">
-                                <p id="success-voucher-code" class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400 tracking-[0.2em] font-mono"></p>
+                        <div class="p-8 flex flex-col items-center bg-[#101018]">
+                            <p class="text-xs text-orange-200 mb-3 uppercase tracking-widest font-bold">Mã voucher</p>
+                            <div class="bg-[#07070A] border border-rose-500/25 rounded-2xl py-4 px-6 mb-5 w-full text-center">
+                                <p id="success-voucher-code" class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-300 via-orange-200 to-violet-300 tracking-[0.2em] font-mono"></p>
                             </div>
-                            <div id="success-voucher-discount" class="btn-gradient px-6 py-2 rounded-full text-sm font-black text-white shadow-lg uppercase tracking-wide"></div>
+                            <div id="success-voucher-discount" class="btn-gradient px-6 py-2 rounded-full text-sm font-black text-white"></div>
                         </div>
                     </div>
                 </div>
-                <div class="p-8 pt-0 bg-[#0f0f13] rounded-b-[2.5rem] relative z-10">
-                    <div class="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-5 text-left mb-8 flex items-start gap-4">
-                        <i class="fa-solid fa-envelope-circle-check text-blue-400 mt-1.5 text-3xl"></i>
+                <div class="p-8 pt-0 bg-[#101018]/85 rounded-b-[2rem] relative z-10">
+                    <div class="bg-violet-500/10 border border-violet-500/20 rounded-2xl p-5 text-left mb-8 flex items-start gap-4">
+                        <i class="fa-solid fa-envelope-circle-check text-violet-300 mt-1.5 text-2xl"></i>
                         <div>
                             <p class="text-sm text-gray-300 leading-relaxed font-medium">Chi tiết lộ trình và voucher ưu đãi demo đã được gửi một bản sao về email: <br><strong id="success-user-email" class="text-white bg-[#050505] border border-gray-800 px-3 py-1 rounded-lg inline-block mt-2 shadow-inner"></strong></p>
                         </div>
                     </div>
-                    <button onclick="closeBookingModal()" class="w-full bg-white hover:bg-gray-200 text-black font-black py-4.5 rounded-2xl transition shadow-[0_0_20px_rgba(255,255,255,0.2)] text-lg h-16"><i class="fa-solid fa-house mr-2"></i>Trở về Trang Chủ</button>
+                    <button onclick="closeBookingModal()" class="interactive-btn secondary-action w-full font-black py-4 rounded-2xl text-lg"><i class="fa-solid fa-house mr-2"></i>Trở về trang chủ</button>
                 </div>
             </div>
         </div>
@@ -635,16 +1292,15 @@
     <!-- ========================================== -->
     <!-- PHẦN 3: TRỢ LÝ DATEPLANNER HỖ TRỢ 24/7     -->
     <!-- ========================================== -->
-    <div id="chatbot-fab" onclick="toggleChatbot()" class="fixed bottom-6 right-6 w-16 h-16 btn-gradient rounded-full flex items-center justify-center cursor-pointer shadow-[0_0_20px_rgba(244,63,94,0.4)] hover:scale-110 transition-transform z-40 text-white text-3xl">
-        <i class="fa-solid fa-comment-dots"></i><div class="absolute top-0 right-0 w-4 h-4 bg-green-500 border-2 border-[#0a0a0a] rounded-full animate-pulse"></div>
+    <div id="chatbot-fab" onclick="toggleChatbot()" class="fixed bottom-6 right-6 w-14 h-14 bg-white text-black rounded-full flex items-center justify-center cursor-pointer hover:scale-105 transition-transform z-40 text-2xl shadow-xl">
+        <i class="fa-solid fa-comment-dots"></i><div class="absolute top-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-[#0a0a0a] rounded-full"></div>
     </div>
 
-    <div id="chatbot-window" class="fixed bottom-28 right-6 w-[340px] sm:w-[400px] bg-[#0f0f13] border border-white/10 rounded-3xl flex flex-col overflow-hidden z-50 shadow-[0_0_40px_rgba(0,0,0,0.8)] transition-all duration-300 transform scale-0 origin-bottom-right opacity-0">
+    <div id="chatbot-window" class="fixed bottom-28 right-6 w-[340px] sm:w-[400px] premium-panel rounded-3xl flex flex-col overflow-hidden z-50 transition-all duration-300 transform scale-0 origin-bottom-right opacity-0">
         <div class="bg-[#171717] p-5 border-b border-gray-800 flex justify-between items-center relative">
-            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 to-purple-600"></div>
             <div class="flex items-center gap-3">
                 <div class="w-12 h-12 btn-gradient rounded-full flex items-center justify-center shadow-lg"><i class="fa-solid fa-robot text-white text-xl"></i></div>
-                <div><h4 class="text-white font-extrabold text-base">Trợ lý DatePlanner</h4><p class="text-xs text-green-400 font-bold flex items-center mt-0.5"><span class="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse"></span> Trực tuyến 24/7</p></div>
+                <div><h4 class="text-white font-extrabold text-base">Trợ lý DatePlanner</h4><p class="text-xs text-green-400 font-bold flex items-center mt-0.5"><span class="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span> Trực tuyến 24/7</p></div>
             </div>
             <button onclick="toggleChatbot()" class="text-gray-500 hover:text-white bg-white/5 w-8 h-8 rounded-full flex items-center justify-center transition border border-white/10"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -692,6 +1348,7 @@
     <!-- Gọi file Dữ liệu vào trước -->
     <script src="data.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     
     <!-- Gọi file Logic vào sau để nó đọc dữ liệu -->
     <!-- Dùng type="module" nếu bên trong app.js có chứa code Firebase (import) -->

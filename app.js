@@ -1,10 +1,13 @@
 // ==========================================
 // 1. KẾT NỐI CƠ SỞ DỮ LIỆU ĐÁM MÂY (FIREBASE)
 // ==========================================
+// Demo MVP only. Production must use Firebase Authentication, Firestore Security Rules,
+// server-side email sending/rate limiting, environment variables, and domain restrictions.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-// ĐÂY LÀ CHÌA KHÓA FIREBASE BẠN VỪA LẤY ĐƯỢC
+// Demo only. Production must use Firebase Authentication and Security Rules.
+// Firebase API key is public client configuration, not a server secret.
 const firebaseConfig = {
     apiKey: "AIzaSyA-QidyMRaVr3ux3tVQPBhsa67zRl4w2pc",
     authDomain: "dateplanner-f2ebf.firebaseapp.com",
@@ -19,7 +22,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const leadsCollection = collection(db, "leads");
-// PIN này chỉ dùng cho demo. Khi triển khai thật cần dùng Firebase Authentication và phân quyền theo partner.
+// PIN này chỉ dùng cho demo, không dùng cho production. Khi triển khai thật cần dùng Firebase Authentication và phân quyền theo partner.
 const ADMIN_DEMO_PIN = "DP2026B2B!";
 const LEGACY_COMMISSION_FALLBACK = 10000;
 const VOUCHER_VALID_DAYS = 7;
@@ -39,6 +42,10 @@ const VISIBILITY_FACTOR = {
 const EMAILJS_PUBLIC_KEY = "RU8QbESICVGc8h_rl";
 const EMAILJS_SERVICE_ID = "service_2026";
 const EMAILJS_TEMPLATE_ID = "template_fcoq5lq";
+const ADMIN_MAX_FAILED_ATTEMPTS = 5;
+const ADMIN_LOCKOUT_MS = 30 * 1000;
+let adminFailedAttempts = 0;
+let adminLockedUntil = 0;
 const LEAD_STATUSES = {
     pending: {
         label: 'Pending',
@@ -85,6 +92,24 @@ window.handleImageFallback = window.handleImageFallback || function(img) {
 
 function getImageAttrs() {
     return 'loading="lazy" decoding="async" onerror="window.handleImageFallback(this)"';
+}
+
+function escapeHTML(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function setTextById(id, value = '') {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+}
+
+function getSafeLeadName(name) {
+    return String(name || '').trim().slice(0, 60);
 }
 
 function applyLocalComboImages() {
@@ -320,8 +345,8 @@ async function sendVoucherEmail(leadData, selectedCombo) {
     console.log("Dang gui email voucher qua EmailJS:", {
         serviceId: EMAILJS_SERVICE_ID,
         templateId: EMAILJS_TEMPLATE_ID,
-        toEmail: templateParams.to_email,
-        templateParams
+        toEmail: maskEmail(templateParams.to_email),
+        comboTitle: templateParams.combo_title
     });
 
     return window.emailjs.send(
@@ -357,6 +382,7 @@ function maskEmail(email) {
 
 // Biến lưu trữ data toàn cục
 window.cloudLeads = [];
+let isSubmittingLead = false;
 
 // 🔴 LẮNG NGHE REAL-TIME: Bất cứ khi nào có khách đăng ký, tự động tải về Admin
 onSnapshot(leadsCollection, (snapshot) => {
@@ -634,8 +660,12 @@ window.populateInviteCombos = function() {
 };
 
 window.updateInvitePreview = function() {
-    const name = document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...';
-    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
+    const nameInput = document.getElementById('inv-name');
+    const messageInput = document.getElementById('inv-message');
+    if (nameInput && nameInput.value.length > 40) nameInput.value = nameInput.value.slice(0, 40);
+    if (messageInput && messageInput.value.length > 160) messageInput.value = messageInput.value.slice(0, 160);
+    const name = nameInput?.value.trim() || 'Tên người ấy...';
+    const message = messageInput?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
     const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
     const combo = combos.find(item => item.id === comboId) || combos[0];
 
@@ -750,10 +780,10 @@ window.updateInvitePreview = function() {
     const background = document.getElementById('inv-card-bg');
     const card = document.getElementById('invite-card-preview');
 
-    if (document.getElementById('prev-name')) document.getElementById('prev-name').innerText = combo?.title || 'DatePlanner Invite';
+    if (document.getElementById('prev-name')) document.getElementById('prev-name').innerText = name;
     if (document.getElementById('prev-message')) document.getElementById('prev-message').innerText = `"${message}"`;
-    if (document.getElementById('prev-combo-title')) document.getElementById('prev-combo-title').innerText = `Gửi đến ${name}`;
-    if (document.getElementById('prev-combo-address')) document.getElementById('prev-combo-address').innerHTML = `<i class="fa-solid fa-location-dot text-rose-300 mr-2"></i>${combo?.address || 'Địa điểm sẽ hiển thị ở đây'}`;
+    if (document.getElementById('prev-combo-title')) document.getElementById('prev-combo-title').innerText = combo?.title || 'Vui lòng chọn lộ trình';
+    if (document.getElementById('prev-combo-address')) document.getElementById('prev-combo-address').innerHTML = `<i class="fa-solid fa-location-dot text-rose-300 mr-2"></i>${escapeHTML(combo?.address || 'Địa điểm sẽ hiển thị ở đây')}`;
     if (document.getElementById('prev-date')) document.getElementById('prev-date').innerText = inviteDate;
     if (background && combo) {
         background.crossOrigin = 'anonymous';
@@ -764,8 +794,8 @@ window.updateInvitePreview = function() {
 };
 
 window.copyInviteText = async function() {
-    const name = document.getElementById('inv-name')?.value.trim() || 'bạn';
-    const message = document.getElementById('inv-message')?.value.trim() || '';
+    const name = (document.getElementById('inv-name')?.value.trim() || 'bạn').slice(0, 40);
+    const message = (document.getElementById('inv-message')?.value.trim() || '').slice(0, 160);
     const combo = getSelectedInviteCombo();
     const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
     const timeLine = inviteDate === 'Chọn thời gian hẹn' ? '' : `\nThời gian: ${inviteDate}`;
@@ -833,8 +863,8 @@ function drawInviteRoundRect(ctx, x, y, width, height, radius) {
 
 async function generateInviteCanvasFallback() {
     const combo = getSelectedInviteCombo();
-    const name = document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...';
-    const message = document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
+    const name = (document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...').slice(0, 40);
+    const message = (document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!').slice(0, 160);
     const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
     const isSquare = (document.getElementById('invite-card-preview')?.dataset.mode || window.currentInviteCardMode) === 'square';
     const canvas = document.createElement('canvas');
@@ -890,12 +920,12 @@ async function generateInviteCanvasFallback() {
     ctx.font = '900 28px Inter, Arial, sans-serif';
     ctx.fillText('DP', 92, 131);
 
-    const dateY = isSquare ? 398 : 1110;
-    const labelY = isSquare ? 500 : 1246;
-    const titleY = isSquare ? 592 : 1338;
-    const messageY = isSquare ? 718 : 1480;
-    const routeY = isSquare ? 872 : 1660;
-    const ctaY = isSquare ? 1000 : 1848;
+    const dateY = isSquare ? 250 : 1110;
+    const labelY = isSquare ? 360 : 1246;
+    const titleY = isSquare ? 440 : 1338;
+    const messageY = isSquare ? 570 : 1480;
+    const routeY = isSquare ? 745 : 1660;
+    const ctaY = 1848;
 
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     drawInviteRoundRect(ctx, 72, dateY, 420, 66, 33);
@@ -906,31 +936,33 @@ async function generateInviteCanvasFallback() {
 
     ctx.fillStyle = '#fecdd3';
     ctx.font = '900 24px Inter, Arial, sans-serif';
-    ctx.fillText('DATE PLANNER INVITE', 72, labelY);
+    ctx.fillText('GỬI ĐẾN', 72, labelY);
     ctx.fillStyle = '#ffffff';
-    ctx.font = isSquare ? '900 70px Inter, Arial, sans-serif' : '900 82px Inter, Arial, sans-serif';
-    drawInviteWrappedText(ctx, combo?.title || 'DatePlanner Invite', 72, titleY, 900, isSquare ? 74 : 86, 2);
+    ctx.font = isSquare ? '900 72px Inter, Arial, sans-serif' : '900 82px Inter, Arial, sans-serif';
+    drawInviteWrappedText(ctx, name, 72, titleY, 900, isSquare ? 74 : 86, 2);
 
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
     ctx.font = isSquare ? '700 italic 38px Inter, Arial, sans-serif' : '700 italic 48px Inter, Arial, sans-serif';
     drawInviteWrappedText(ctx, `"${message}"`, 72, messageY, 900, isSquare ? 48 : 60, isSquare ? 2 : 3);
 
     ctx.fillStyle = 'rgba(255,255,255,0.13)';
-    drawInviteRoundRect(ctx, 72, routeY, 936, isSquare ? 86 : 164, 34);
+    drawInviteRoundRect(ctx, 72, routeY, 936, isSquare ? 142 : 164, 34);
     ctx.fill();
     ctx.fillStyle = '#fed7aa';
     ctx.font = '900 24px Inter, Arial, sans-serif';
-    ctx.fillText('GỬI ĐẾN', 112, routeY + 45);
+    ctx.fillText('LỘ TRÌNH DATEPLANNER', 112, routeY + 45);
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 42px Inter, Arial, sans-serif';
-    drawInviteWrappedText(ctx, name, 260, routeY + 45, 650, 48, 1);
+    drawInviteWrappedText(ctx, combo?.title || 'Vui lòng chọn lộ trình', 112, routeY + 102, 820, 48, isSquare ? 1 : 2);
 
-    ctx.fillStyle = '#000000';
-    drawInviteRoundRect(ctx, 72, ctaY, 520, 56, 28);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 24px Inter, Arial, sans-serif';
-    ctx.fillText('Ready for our next adventure?', 108, ctaY + 37);
+    if (!isSquare) {
+        ctx.fillStyle = '#000000';
+        drawInviteRoundRect(ctx, 72, ctaY, 520, 56, 28);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 24px Inter, Arial, sans-serif';
+        ctx.fillText('Ready for our next adventure?', 108, ctaY + 37);
+    }
 
     return new Promise((resolve, reject) => {
         canvas.toBlob(blob => {
@@ -1038,9 +1070,18 @@ window.appendChatbotMessage = function(text, fromUser = false) {
 
     const wrapper = document.createElement('div');
     wrapper.className = fromUser ? 'flex justify-end' : 'flex gap-3 items-end';
-    wrapper.innerHTML = fromUser
-        ? `<div class="bg-rose-500 text-white text-sm p-4 rounded-2xl rounded-br-sm max-w-[85%] leading-relaxed shadow-sm font-medium">${text}</div>`
-        : `<div class="w-8 h-8 rounded-full btn-gradient flex items-center justify-center shrink-0 mb-1 shadow-md"><i class="fa-solid fa-robot text-white text-xs"></i></div><div class="bg-[#171717] text-sm text-gray-200 p-4 rounded-2xl rounded-bl-sm max-w-[85%] border border-gray-800 leading-relaxed shadow-sm font-medium">${text}</div>`;
+    if (fromUser) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bg-rose-500 text-white text-sm p-4 rounded-2xl rounded-br-sm max-w-[85%] leading-relaxed shadow-sm font-medium';
+        bubble.textContent = String(text || '').slice(0, 240);
+        wrapper.appendChild(bubble);
+    } else {
+        wrapper.innerHTML = '<div class="w-8 h-8 rounded-full btn-gradient flex items-center justify-center shrink-0 mb-1 shadow-md"><i class="fa-solid fa-robot text-white text-xs"></i></div>';
+        const bubble = document.createElement('div');
+        bubble.className = 'bg-[#171717] text-sm text-gray-200 p-4 rounded-2xl rounded-bl-sm max-w-[85%] border border-gray-800 leading-relaxed shadow-sm font-medium';
+        bubble.textContent = String(text || '').slice(0, 240);
+        wrapper.appendChild(bubble);
+    }
     messages.appendChild(wrapper);
     messages.scrollTop = messages.scrollHeight;
 };
@@ -1125,7 +1166,7 @@ window.getMoodRecommendation = function(moodType) {
                     </div>
                     <div class="p-6 md:p-9 lg:p-10 flex flex-col justify-center">
                         <span class="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-widest mb-5 ${moodTheme.badge} px-4 py-2 rounded-full">
-                            <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>Date Planner &#273;&#7873; xu&#7845;t
+                            <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>AI Date Planner &#273;&#7873; xu&#7845;t
                         </span>
                         <h3 class="text-4xl md:text-5xl font-black text-white mb-4 leading-[0.98] tracking-tight">${randomCombo.title}</h3>
                         <p class="text-zinc-300 mb-6 font-semibold leading-relaxed">${randomCombo.desc || getMoodReason(moodType)}</p>
@@ -1280,7 +1321,7 @@ window.openComboDetail = function(id) {
     ` : '';
 
     const detailImg = document.getElementById('detail-img');
-    detailImg.alt = combo.title;
+    detailImg.alt = combo.title || 'DatePlanner combo';
     detailImg.src = getComboImage(combo);
     document.getElementById('detail-target').innerText = getTargetLabel(combo);
     const categoryLabel = combo.category === 'low' ? 'Bình dân' : (combo.category === 'mid' ? 'Tiêu chuẩn' : 'Cao cấp');
@@ -1293,8 +1334,8 @@ window.openComboDetail = function(id) {
                 : 'bg-gradient-to-r from-cyan-400 to-green-400 text-[#061018]';
     const detailCategory = document.getElementById('detail-category');
     detailCategory.className = `inline-block ${categoryClass} px-3 py-1.5 rounded-full text-xs font-black`;
-    detailCategory.innerHTML = `<i class="fa-solid ${combo.icon} mr-1"></i> ${categoryLabel}`;
-    document.getElementById('detail-title').innerText = combo.title;
+    detailCategory.innerHTML = `<i class="fa-solid ${escapeHTML(combo.icon || 'fa-heart')} mr-1"></i> ${escapeHTML(categoryLabel)}`;
+    document.getElementById('detail-title').innerText = combo.title || 'Lộ trình DatePlanner';
     document.getElementById('lead-combo-id').value = combo.id;
     document.getElementById('lead-combo-title').value = combo.title;
     document.getElementById('lead-combo-discount').value = combo.discount;
@@ -1304,10 +1345,10 @@ window.openComboDetail = function(id) {
         <div class="flex-1">
             <span class="block text-zinc-500 mb-1 text-xs font-bold uppercase tracking-widest">Khu vực chính</span>
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <span class="text-white font-bold text-lg">${comboAddress || 'Chua cap nhat dia diem'}</span>
+                <span class="text-white font-bold text-lg">${escapeHTML(comboAddress || 'Chưa cập nhật địa điểm')}</span>
                 ${comboDirectionsButton}
             </div>
-            <p class="text-zinc-300 mt-4">${combo.desc || ''}</p>
+            <p class="text-zinc-300 mt-4">${escapeHTML(combo.desc || '')}</p>
         </div>
     `;
     document.getElementById('detail-price').innerText = formatComboPrice(combo);
@@ -1327,12 +1368,12 @@ window.openComboDetail = function(id) {
         timelineContainer.innerHTML += `
             <div class="relative">
                 <div class="absolute -left-[31px] top-1 h-4 w-4 rounded-full bg-rose-300 border-4 border-[#0b0d10]"></div>
-                <h5 class="text-rose-200 font-black text-lg mb-1">${step.time}</h5>
-                <p class="text-white font-bold text-lg mb-2">${step.activity}</p>
+                <h5 class="text-rose-200 font-black text-lg mb-1">${escapeHTML(step.time || '')}</h5>
+                <p class="text-white font-bold text-lg mb-2">${escapeHTML(step.activity || '')}</p>
                 <div class="text-zinc-300 text-sm flex items-start gap-3 mt-2 bg-white/[0.035] p-3 rounded-xl border border-white/10">
                     <i class="fa-solid fa-map-pin mt-1 text-zinc-500"></i> 
                     <div class="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <span class="font-medium flex-1">${stepLocation || 'Chua cap nhat dia diem'}</span>
+                        <span class="font-medium flex-1">${escapeHTML(stepLocation || 'Chưa cập nhật địa điểm')}</span>
                         ${stepDirectionsButton}
                     </div>
                 </div>
@@ -1414,9 +1455,127 @@ const submitButton = document.getElementById('lead-submit-btn');
 function updateLeadSubmitState() {
     if (!consentCheckbox || !submitButton) return;
 
-    submitButton.setAttribute('aria-disabled', String(!consentCheckbox.checked));
-    submitButton.classList.toggle('opacity-50', !consentCheckbox.checked);
-    submitButton.classList.toggle('cursor-not-allowed', !consentCheckbox.checked);
+    const disabled = !consentCheckbox.checked || isSubmittingLead;
+    submitButton.disabled = disabled;
+    submitButton.setAttribute('aria-disabled', String(disabled));
+    submitButton.classList.toggle('opacity-50', disabled);
+    submitButton.classList.toggle('cursor-not-allowed', disabled);
+}
+
+function normalizeLeadEmail(email) {
+    return String(email || '').toLowerCase().trim();
+}
+
+function normalizeLeadPhone(phone) {
+    return String(phone || '').replace(/\D/g, '');
+}
+
+function normalizeLeadCombo(combo) {
+    return String(combo || '').toLowerCase().trim();
+}
+
+function generateVoucherCode() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = new Uint8Array(8);
+    if (window.crypto?.getRandomValues) {
+        window.crypto.getRandomValues(bytes);
+    } else {
+        bytes.forEach((_, index) => {
+            bytes[index] = Math.floor(Math.random() * 256);
+        });
+    }
+
+    return `DP-${Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('')}`;
+}
+
+function isSameLeadCombo(lead, selectedCombo, comboTitle) {
+    const leadComboId = Number(lead?.comboId);
+    if (Number.isFinite(leadComboId) && selectedCombo?.id !== undefined) {
+        return leadComboId === Number(selectedCombo.id);
+    }
+
+    return normalizeLeadCombo(lead?.combo) === normalizeLeadCombo(selectedCombo?.title || comboTitle);
+}
+
+function isDuplicateActiveLead(lead, normalizedEmail, normalizedPhone, selectedCombo, comboTitle, now = Date.now()) {
+    const leadStatus = getEffectiveLeadStatus(lead);
+    const hasMatchingContact = normalizeLeadEmail(lead?.email) === normalizedEmail || normalizeLeadPhone(lead?.phone) === normalizedPhone;
+    const hasMatchingCombo = isSameLeadCombo(lead, selectedCombo, comboTitle);
+    const expiresAt = getLeadExpiryTimestamp(lead);
+    const isActivePending = leadStatus === 'pending' && (!expiresAt || expiresAt >= now);
+
+    return hasMatchingContact && hasMatchingCombo && (isActivePending || leadStatus === 'used');
+}
+
+function findDuplicateVoucherLead(normalizedEmail, normalizedPhone, selectedCombo, comboTitle) {
+    if (!Array.isArray(window.cloudLeads)) return null;
+    const now = Date.now();
+
+    return window.cloudLeads.find((lead) => isDuplicateActiveLead(
+        lead,
+        normalizedEmail,
+        normalizedPhone,
+        selectedCombo,
+        comboTitle,
+        now
+    )) || null;
+}
+
+function setLeadSubmitLoading(isLoading, previousHtml = '') {
+    const button = document.getElementById('lead-submit-btn');
+    if (!button) return;
+
+    if (isLoading) {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>\u0110ang t\u1ea1o voucher...';
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+        return;
+    }
+
+    button.disabled = false;
+    if (previousHtml) button.innerHTML = previousHtml;
+    updateLeadSubmitState();
+}
+
+function resetLeadFormAfterSubmit() {
+    document.getElementById('lead-name').value = '';
+    document.getElementById('lead-phone').value = '';
+    document.getElementById('lead-email').value = '';
+    document.getElementById('lead-consent').checked = false;
+    updateLeadSubmitState();
+    document.getElementById('lead-consent-error').classList.add('hidden');
+}
+
+function showVoucherSuccessModal(leadData, selectedCombo, message = '') {
+    document.getElementById('success-user-name').innerText = leadData.name || 'bạn';
+    document.getElementById('success-combo-title').innerText = leadData.combo || selectedCombo.title;
+    document.getElementById('success-voucher-code').innerText = leadData.code || '';
+    document.getElementById('success-user-email').innerText = leadData.email || '';
+    document.getElementById('success-voucher-discount').innerText = `Giảm ngay ${selectedCombo.discount}`;
+
+    const emailElement = document.getElementById('success-user-email');
+    const emailBox = emailElement?.closest('.bg-violet-500\\/10');
+    if (emailBox) {
+        let messageElement = document.getElementById('success-voucher-message');
+        if (!messageElement) {
+            messageElement = document.createElement('p');
+            messageElement.id = 'success-voucher-message';
+            messageElement.className = 'text-sm text-violet-100 leading-relaxed font-semibold mb-3';
+            emailBox.querySelector('div')?.prepend(messageElement);
+        }
+
+        messageElement.innerText = message;
+        messageElement.classList.toggle('hidden', !message);
+    }
+
+    window.closeLeadForm();
+
+    setTimeout(() => {
+        const modal = document.getElementById('booking-modal');
+        modal.classList.remove('hidden');
+        setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
+    }, 300);
 }
 
 if (consentCheckbox && submitButton) {
@@ -1429,12 +1588,16 @@ if (consentCheckbox && submitButton) {
 }
 
 window.submitLead = async function() {
-    const name = document.getElementById('lead-name').value.trim();
+    if (isSubmittingLead === true) return;
+
+    const name = getSafeLeadName(document.getElementById('lead-name').value);
     const phone = document.getElementById('lead-phone').value.trim();
-    const email = document.getElementById('lead-email').value.trim();
+    const email = document.getElementById('lead-email').value.trim().toLowerCase().slice(0, 120);
     const hasConsent = document.getElementById('lead-consent').checked;
     const comboTitle = document.getElementById('lead-combo-title').value;
     const comboId = parseInt(document.getElementById('lead-combo-id').value);
+    const currentSubmitButton = document.getElementById('lead-submit-btn');
+    const previousSubmitHtml = currentSubmitButton?.innerHTML || '';
 
     // Validate dữ liệu
     if(!name || !phone || !email) { alert("Vui lòng điền đầy đủ thông tin!"); return; }
@@ -1450,6 +1613,26 @@ window.submitLead = async function() {
     }
 
     const selectedCombo = combos.find(c => c.id === comboId);
+    if (!selectedCombo) { alert("Khong tim thay combo. Vui long chon lai voucher."); return; }
+
+    isSubmittingLead = true;
+    setLeadSubmitLoading(true);
+
+    try {
+    const normalizedEmail = normalizeLeadEmail(email);
+    const normalizedPhone = normalizeLeadPhone(phone);
+    const duplicateLead = findDuplicateVoucherLead(normalizedEmail, normalizedPhone, selectedCombo, comboTitle);
+
+    if (duplicateLead) {
+        showVoucherSuccessModal(
+            duplicateLead,
+            selectedCombo,
+            "B\u1ea1n \u0111\u00e3 nh\u1eadn voucher n\u00e0y r\u1ed3i. M\u00ecnh hi\u1ec3n th\u1ecb l\u1ea1i m\u00e3 c\u0169 \u0111\u1ec3 tr\u00e1nh g\u1eedi email tr\u00f9ng nh\u00e9."
+        );
+        resetLeadFormAfterSubmit();
+        return;
+    }
+
     const partnerLeads = window.cloudLeads.filter(l => l.partner === selectedCombo.partner);
     const partnerUsedLeads = partnerLeads.filter(l => getEffectiveLeadStatus(l) === 'used');
     const partnerConversionRate = partnerLeads.length > 0 ? partnerUsedLeads.length / partnerLeads.length : undefined;
@@ -1460,10 +1643,11 @@ window.submitLead = async function() {
     const leadData = {
         name: name, 
         phone: phone, 
-        email: email, 
+        email: normalizedEmail, 
         combo: comboTitle,
+        comboId: selectedCombo.id,
         partner: selectedCombo.partner,
-        code: 'DP-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+        code: generateVoucherCode(),
         date: now.toLocaleDateString('vi-VN'),
         timestamp: now.getTime(),
         expiresAt,
@@ -1510,6 +1694,7 @@ window.submitLead = async function() {
     document.getElementById('success-voucher-code').innerText = leadData.code;
     document.getElementById('success-user-email').innerText = email;
     document.getElementById('success-voucher-discount').innerText = `Giảm ngay ${selectedCombo.discount}`;
+    document.getElementById('success-voucher-message')?.classList.add('hidden');
 
     window.closeLeadForm();
     
@@ -1526,6 +1711,13 @@ window.submitLead = async function() {
         modal.classList.remove('hidden');
         setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
     }, 300);
+    } catch (e) {
+        console.error("Loi khong mong muon khi tao voucher: ", e);
+        alert("Co loi khi tao voucher. Vui long thu lai!");
+    } finally {
+        isSubmittingLead = false;
+        setLeadSubmitLoading(false, previousSubmitHtml);
+    }
 };
 
 window.closeBookingModal = function() {
@@ -1539,31 +1731,73 @@ window.closeBookingModal = function() {
 // 7. QUẢN TRỊ ADMIN - ĐỌC DATA TỪ ĐÁM MÂY & ĐỐI SOÁT CPS
 // ==========================================
 window.toggleAdminView = function() {
-    document.getElementById('admin-login-modal').classList.remove('hidden');
+    const modal = document.getElementById('admin-login-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.firstElementChild?.classList.remove('scale-95');
+        document.getElementById('admin-pin')?.focus();
+    }, 10);
 };
 
 window.closeAdminLogin = function() {
-    document.getElementById('admin-login-modal').classList.add('hidden');
+    const modal = document.getElementById('admin-login-modal');
+    if (!modal) return;
+    modal.classList.add('opacity-0');
+    modal.firstElementChild?.classList.add('scale-95');
+    setTimeout(() => modal.classList.add('hidden'), 180);
 };
 
 window.verifyAdmin = function() {
-    const pinInput = document.getElementById('admin-pin').value;
+    const pinElement = document.getElementById('admin-pin');
+    const errorElement = document.getElementById('admin-error');
+    const pinInput = pinElement?.value || '';
+    const now = Date.now();
+
+    if (now < adminLockedUntil) {
+        const secondsLeft = Math.ceil((adminLockedUntil - now) / 1000);
+        if (errorElement) {
+            errorElement.textContent = `Nhập sai quá nhiều lần. Vui lòng thử lại sau ${secondsLeft} giây.`;
+            errorElement.classList.remove('hidden');
+        }
+        return;
+    }
+
     if(pinInput === ADMIN_DEMO_PIN) {
+        adminFailedAttempts = 0;
+        adminLockedUntil = 0;
+        if (errorElement) {
+            errorElement.textContent = 'Mã PIN không chính xác!';
+            errorElement.classList.add('hidden');
+        }
         window.closeAdminLogin(); 
         document.getElementById('admin-view').classList.remove('hidden');
         document.getElementById('client-view')?.classList.add('hidden');
         window.populatePartnerFilter(); 
         window.renderAdminData();       
     } else {
-        document.getElementById('admin-error').classList.remove('hidden');
+        adminFailedAttempts += 1;
+        if (adminFailedAttempts >= ADMIN_MAX_FAILED_ATTEMPTS) {
+            adminLockedUntil = Date.now() + ADMIN_LOCKOUT_MS;
+            adminFailedAttempts = 0;
+            if (errorElement) errorElement.textContent = 'Nhập sai quá nhiều lần. Admin demo tạm khóa 30 giây.';
+        } else if (errorElement) {
+            const remaining = ADMIN_MAX_FAILED_ATTEMPTS - adminFailedAttempts;
+            errorElement.textContent = `Mã PIN không chính xác. Còn ${remaining} lần thử trước khi tạm khóa.`;
+        }
+        errorElement?.classList.remove('hidden');
     }
 };
 
 window.logoutAdmin = function() {
-    document.getElementById('admin-pin').value = '';
-    document.getElementById('admin-error').classList.add('hidden');
+    const pinElement = document.getElementById('admin-pin');
+    const errorElement = document.getElementById('admin-error');
+    if (pinElement) pinElement.value = '';
+    if (errorElement) errorElement.classList.add('hidden');
     document.getElementById('admin-view').classList.add('hidden');
-    document.getElementById('admin-login-modal').classList.remove('hidden');
+    document.getElementById('client-view')?.classList.remove('hidden');
+    window.toggleAdminView();
 }
 
 window.populatePartnerFilter = function() {
@@ -1574,7 +1808,12 @@ window.populatePartnerFilter = function() {
     const uniquePartners = [...new Set(window.cloudLeads.map(l => l.partner || 'Đối tác khác'))];
     
     selectEl.innerHTML = '<option value="all">Tất cả Đối tác (Tổng hợp)</option>';
-    uniquePartners.forEach(p => { selectEl.innerHTML += `<option value="${p}">${p}</option>`; });
+    uniquePartners.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p;
+        option.textContent = p;
+        selectEl.appendChild(option);
+    });
     selectEl.value = currentVal || 'all';
 };
 
@@ -1620,6 +1859,12 @@ window.renderAdminData = function() {
             // UI che du lieu de giam rui ro khi demo/public screen; Firebase va CSV van giu du lieu goc.
             const maskedPhone = maskPhone(lead.phone);
             const maskedEmail = maskEmail(lead.email);
+            const safeLeadName = escapeHTML(lead.name || 'Khách demo');
+            const safeComboName = escapeHTML(lead.combo || 'Lộ trình DatePlanner');
+            const safePartnerName = escapeHTML(partnerName);
+            const safePartnerTier = escapeHTML(partnerTier);
+            const safeVoucherCode = escapeHTML(lead.code || 'N/A');
+            const safeLeadDate = escapeHTML(lead.date || formatLeadDateTime(lead.timestamp) || '');
             
             // Render Giao diện Trạng thái
             let statusBadge = isUsed 
@@ -1632,7 +1877,7 @@ window.renderAdminData = function() {
                     <span class="${statusConfig.badgeClass} px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider inline-flex items-center">
                         <i class="fa-solid ${statusConfig.icon} mr-1"></i>${statusConfig.label}
                     </span>
-                    ${statusTimestamp ? `<div class="text-gray-500 text-[10px] mt-1 font-medium">${statusTimestamp}</div>` : ''}
+                    ${statusTimestamp ? `<div class="text-gray-500 text-[10px] mt-1 font-medium">${escapeHTML(statusTimestamp)}</div>` : ''}
                 `;
             }
             
@@ -1647,19 +1892,19 @@ window.renderAdminData = function() {
 
             tbody.innerHTML += `
                 <tr class="hover:bg-white/5 transition border-b border-white/5">
-                    <td class="px-6 py-4 font-bold text-gray-200">${lead.name}</td>
+                    <td class="px-6 py-4 font-bold text-gray-200">${safeLeadName}</td>
                     <td class="px-6 py-4">
-                        <div class="text-gray-300 text-xs mb-1"><i class="fa-solid fa-phone mr-1 text-gray-500"></i> ${maskedPhone}</div>
-                        <div class="text-gray-400 text-xs"><i class="fa-solid fa-envelope mr-1 text-gray-500"></i> ${maskedEmail}</div>
+                        <div class="text-gray-300 text-xs mb-1"><i class="fa-solid fa-phone mr-1 text-gray-500"></i> ${escapeHTML(maskedPhone)}</div>
+                        <div class="text-gray-400 text-xs"><i class="fa-solid fa-envelope mr-1 text-gray-500"></i> ${escapeHTML(maskedEmail)}</div>
                     </td>
                     <td class="px-6 py-4">
-                        <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs mb-2 inline-block truncate max-w-[200px] font-bold">${lead.combo}</span><br>
-                        <span class="text-gray-400 text-xs font-medium"><i class="fa-solid fa-store mr-1 text-yellow-500"></i> ${partnerName}</span>
-                        <div class="text-gray-500 text-xs mt-1 font-medium">Tier: <span class="text-gray-300 uppercase">${partnerTier}</span></div>
+                        <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs mb-2 inline-block truncate max-w-[200px] font-bold">${safeComboName}</span><br>
+                        <span class="text-gray-400 text-xs font-medium"><i class="fa-solid fa-store mr-1 text-yellow-500"></i> ${safePartnerName}</span>
+                        <div class="text-gray-500 text-xs mt-1 font-medium">Tier: <span class="text-gray-300 uppercase">${safePartnerTier}</span></div>
                     </td>
                     <td class="px-6 py-4">
-                        <span class="text-white font-black font-mono block mb-1 tracking-widest text-sm">${lead.code || 'N/A'}</span>
-                        <span class="text-gray-500 text-xs font-medium">${lead.date}</span>
+                        <span class="text-white font-black font-mono block mb-1 tracking-widest text-sm">${safeVoucherCode}</span>
+                        <span class="text-gray-500 text-xs font-medium">${safeLeadDate}</span>
                     </td>
                     <td class="px-6 py-4">
                         <span class="text-rose-300 font-black">${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(commissionAmount)}</span>
@@ -1748,7 +1993,8 @@ window.exportToCSV = function() {
     if (leads.length === 0) { alert("Chưa có dữ liệu để xuất file!"); return; }
 
     const csvEscape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    let csvContent = "Họ tên,SĐT,Email,Combo,Đối tác,Partner Tier,Estimated AOV,Commission Rate,Commission Amount,Visibility Level,Mã voucher,Trạng thái,Ngày tạo,Ngày cập nhật trạng thái nếu có\n";
+    let csvContent = "DatePlanner demo internal reconciliation export - contains full contact data for pilot use only\n";
+    csvContent += "Họ tên,SĐT,Email,Combo,Đối tác,Partner Tier,Estimated AOV,Commission Rate,Base Fee,Commission Amount,Commission Formula,Visibility Level,Mã voucher,Trạng thái,Ngày tạo,Hết hạn,Consent,Consent At,Ngày cập nhật trạng thái nếu có\n";
 
     leads.forEach(row => {
         const status = getEffectiveLeadStatus(row);
@@ -1763,11 +2009,16 @@ window.exportToCSV = function() {
             row.partnerTier || 'legacy',
             row.estimatedAOV || '',
             row.commissionRate || '',
+            row.baseFee || '',
             getLeadCommissionAmount(row),
+            row.commissionFormulaText || '',
             row.visibilityLevel || '',
             row.code,
             statusText,
             row.date,
+            row.expiresAtText || formatLeadDateTime(row.expiresAt),
+            row.consent ? 'yes' : 'unknown',
+            formatLeadDateTime(row.consentAt),
             usedTime
         ].map(csvEscape).join(',') + '\n';
     });
@@ -1784,7 +2035,10 @@ window.exportToCSV = function() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 };
+
+window.clearData = window.clearDemoDataInternalOnly;
 
 // ==========================================
 // KHỞI CHẠY CÁC HÀM UI CÒN LẠI KHI TẢI TRANG

@@ -43,7 +43,8 @@
             </div>
             <div class="space-y-5">
                 <div>
-                    <input type="password" id="admin-pin" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 text-center tracking-[0.5em] text-2xl font-black shadow-inner" placeholder="••••••">
+                    <label for="admin-pin" class="sr-only">Mã PIN admin demo</label>
+                    <input type="password" id="admin-pin" maxlength="24" autocomplete="off" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 text-center tracking-[0.5em] text-2xl font-black shadow-inner" placeholder="••••••">
                     <p id="admin-error" class="text-rose-500 text-sm mt-3 hidden text-center font-bold bg-rose-500/10 py-2.5 rounded-xl border border-rose-500/20">Mã PIN không chính xác!</p>
                 </div>
                 <button onclick="window.verifyAdmin()" class="w-full bg-white text-black hover:bg-gray-200 font-black py-4.5 rounded-2xl transition mt-2 text-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] h-16">Đăng Nhập</button>

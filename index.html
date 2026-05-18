@@ -292,6 +292,7 @@
         .invite-card-preview.is-square {
             aspect-ratio: 1 / 1;
             min-height: 0;
+            height: auto;
         }
         .invite-card-preview::before,
         .invite-card-preview::after {
@@ -367,16 +368,33 @@
             overflow: hidden;
             overflow-wrap: anywhere;
         }
-        .invite-card-preview.is-square .invite-card-content { padding: clamp(1.1rem, 4vw, 1.6rem); }
+        .square-only { display: none; }
+        .invite-card-preview.is-square .story-only { display: none !important; }
+        .invite-card-preview.is-square .square-only { display: initial; }
+        .invite-card-preview.is-square .invite-card-content {
+            padding: clamp(0.8rem, 2.8vw, 1rem);
+            justify-content: space-between;
+            gap: 0.45rem;
+        }
+        .invite-card-preview.is-square .invite-card-content > .mt-auto { margin-top: 0; }
+        .invite-card-preview.is-square > .invite-card-content > .flex:first-child {
+            align-items: center;
+        }
+        .invite-card-preview.is-square > .invite-card-content > .flex:first-child .invite-glass-pill:last-child {
+            display: none;
+        }
+        .invite-card-preview.is-square > .invite-card-content > .flex:first-child .invite-glass-pill:first-child {
+            padding: 0.45rem 0.75rem;
+        }
         .invite-card-preview.is-square .invite-poster-title {
-            font-size: clamp(2.05rem, 8vw, 3.45rem);
+            font-size: clamp(2rem, 6vw, 3rem);
             -webkit-line-clamp: 2;
         }
-        .invite-card-preview.is-square .invite-message-box { max-height: 6.7rem; }
+        .invite-card-preview.is-square .invite-message-box { max-height: 5.4rem; }
         .invite-card-preview.is-square .invite-message-text {
-            font-size: 0.96rem;
+            font-size: clamp(0.95rem, 2.8vw, 1rem);
             line-height: 1.42;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
         }
         .invite-card-preview.is-square .invite-card-footer { margin-top: 0.9rem; }
         .invite-card-preview > .invite-card-content > .flex:first-child .invite-glass-pill:first-child img { display: none; }
@@ -422,26 +440,60 @@
             max-height: 10rem;
         }
         .invite-card-preview #prev-combo-title {
-            font-size: 0.95rem;
+            font-size: clamp(1.35rem, 4.8vw, 1.65rem);
             color: #e5e7eb;
         }
         .invite-card-preview.is-square #prev-name {
-            font-size: clamp(2.2rem, 8vw, 3.45rem);
-            line-height: 0.96;
+            font-size: clamp(2rem, 6vw, 3rem);
+            line-height: 0.98;
+            -webkit-line-clamp: 2;
         }
         .invite-card-preview.is-square #prev-message {
-            font-size: 1rem;
-            line-height: 1.45;
-            -webkit-line-clamp: 3;
-            max-height: 7.5rem;
-            margin-top: 1.1rem;
-            margin-bottom: 1.1rem;
+            font-size: clamp(0.95rem, 2.8vw, 1rem);
+            line-height: 1.4;
+            -webkit-line-clamp: 2;
+            max-height: 4.25rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.6rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: 1.1rem;
         }
         .invite-card-preview.is-long-message #prev-message {
             font-size: clamp(0.95rem, 4vw, 1.05rem);
             line-height: 1.45;
         }
         .invite-card-preview.is-square #prev-combo-address { display: none; }
+        .invite-card-preview.is-square #prev-combo-title {
+            font-size: clamp(1.25rem, 4.2vw, 1.5rem);
+            line-height: 1.08;
+            -webkit-line-clamp: 2;
+        }
+        .invite-card-preview.is-square .invite-glass-pill.p-5 {
+            padding: 0.75rem;
+            border-radius: 1.25rem;
+            margin-bottom: 0.55rem;
+        }
+        .invite-card-preview.is-square .invite-glass-pill.inline-flex.px-3.py-2 {
+            margin-bottom: 0.55rem;
+            padding-top: 0.45rem;
+            padding-bottom: 0.45rem;
+        }
+        .invite-card-preview.is-square #prev-name + #prev-message {
+            margin-top: 0.6rem;
+        }
+        .invite-card-preview.is-square .flex.items-center.justify-between.gap-4 {
+            justify-content: flex-end;
+            min-height: 2.25rem;
+        }
+        .invite-card-preview.is-square .flex.items-center.justify-between.gap-4 .invite-glass-pill {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.9rem;
+        }
+        .invite-card-preview.is-square .flex.items-center.justify-between.gap-4 img {
+            width: 1.55rem;
+            height: 1.55rem;
+        }
         .invite-glass-pill {
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.18);
@@ -931,7 +983,7 @@
                     <div class="premium-panel p-6 md:p-8 rounded-[1.75rem] relative overflow-hidden border-violet-500/20">
                         <div class="mb-6 relative z-10">
                             <label class="block text-sm font-bold text-gray-300 mb-2">Tên người nhận</label>
-                            <input type="text" id="inv-name" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Nhập tên..." onkeyup="updateInvitePreview()">
+                            <input type="text" id="inv-name" maxlength="40" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Nhập tên..." onkeyup="updateInvitePreview()">
                         </div>
                         <div class="mb-6 relative z-10">
                             <label class="block text-sm font-bold text-gray-300 mb-2">Chọn lộ trình</label>
@@ -946,7 +998,7 @@
                                 <label class="block text-sm font-bold text-gray-300">Lời nhắn</label>
                                 <button onclick="randomizeMessage()" class="interactive-btn secondary-action text-xs px-3 py-1.5 rounded-full flex items-center font-bold"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Gợi ý câu</button>
                             </div>
-                            <input type="text" id="inv-message" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Cuối tuần này rảnh không..." value="Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!" onkeyup="updateInvitePreview()">
+                            <input type="text" id="inv-message" maxlength="160" class="w-full premium-input px-5 py-4 font-medium text-lg" placeholder="Cuối tuần này rảnh không..." value="Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!" onkeyup="updateInvitePreview()">
                         </div>
                         <button onclick="copyInviteText()" id="copy-inv-btn" class="interactive-btn primary-action w-full font-black py-4 rounded-2xl flex items-center justify-center text-lg relative z-10">
                             <i class="fa-regular fa-copy mr-2"></i> Copy l&#7901;i m&#7901;i
@@ -999,7 +1051,7 @@
                                         <p id="prev-combo-address" class="text-sm text-white/78 font-semibold leading-relaxed"><i class="fa-solid fa-location-dot text-rose-300 mr-2"></i>Địa điểm sẽ hiển thị ở đây</p>
                                     </div>
                                     <div class="flex items-center justify-between gap-4">
-                                        <div class="bg-white text-black px-5 py-3 rounded-2xl font-black text-sm shadow-lg">Ready for our next adventure?</div>
+                                        <div class="story-only bg-white text-black px-5 py-3 rounded-2xl font-black text-sm shadow-lg">Ready for our next adventure?</div>
                                         <div class="invite-glass-pill w-12 h-12 rounded-2xl flex items-center justify-center text-orange-100">
                                             <img src="./logodateplanner.jpg" class="w-8 h-8 rounded-full object-cover bg-white" alt="DatePlanner" crossorigin="anonymous" onerror="window.handleImageFallback(this)">
                                         </div>
@@ -1085,9 +1137,18 @@
                     <p class="text-gray-400 text-sm leading-relaxed font-medium">Tên, SĐT và email giúp DatePlanner gửi mã voucher, nhắc lại lộ trình và đối soát ưu đãi demo với địa điểm.</p>
                 </div>
                 <div class="space-y-5 relative z-10">
-                    <div><input type="text" id="lead-name" class="w-full premium-input px-5 py-4 font-medium" placeholder="Họ và tên"></div>
-                    <div><input type="tel" id="lead-phone" class="w-full premium-input px-5 py-4 font-medium" placeholder="Số điện thoại"></div>
-                    <div><input type="email" id="lead-email" class="w-full premium-input px-5 py-4 font-medium" placeholder="Email nhận voucher"></div>
+                    <div>
+                        <label for="lead-name" class="sr-only">Họ và tên</label>
+                        <input type="text" id="lead-name" maxlength="60" autocomplete="name" class="w-full premium-input px-5 py-4 font-medium" placeholder="Họ và tên">
+                    </div>
+                    <div>
+                        <label for="lead-phone" class="sr-only">Số điện thoại</label>
+                        <input type="tel" id="lead-phone" maxlength="10" inputmode="numeric" autocomplete="tel" class="w-full premium-input px-5 py-4 font-medium" placeholder="Số điện thoại">
+                    </div>
+                    <div>
+                        <label for="lead-email" class="sr-only">Email nhận voucher</label>
+                        <input type="email" id="lead-email" maxlength="120" autocomplete="email" class="w-full premium-input px-5 py-4 font-medium" placeholder="Email nhận voucher">
+                    </div>
                     <label for="lead-consent" class="flex items-start gap-3 bg-white/5 border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-rose-500/50 transition">
                         <input type="checkbox" id="lead-consent" required class="mt-1 h-5 w-5 shrink-0 accent-rose-500 cursor-pointer">
                         <span class="text-xs text-gray-300 leading-relaxed font-medium">Tôi đồng ý cho DatePlanner lưu thông tin liên hệ để gửi E-Voucher và đối soát ưu đãi với địa điểm/đối tác trong phạm vi demo/pilot. Dữ liệu không được bán cho bên thứ ba.</span>
@@ -1185,7 +1246,8 @@
                 </div>
                 <div class="space-y-5">
                     <div>
-                        <input type="password" id="admin-pin" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 text-center tracking-[0.5em] text-2xl font-black shadow-inner" placeholder="••••••">
+                        <label for="admin-pin" class="sr-only">Mã PIN admin demo</label>
+                        <input type="password" id="admin-pin" maxlength="24" autocomplete="off" class="w-full bg-[#050505] border border-gray-800 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 text-center tracking-[0.5em] text-2xl font-black shadow-inner" placeholder="••••••">
                         <p id="admin-error" class="text-rose-500 text-sm mt-3 hidden text-center font-bold bg-rose-500/10 py-2.5 rounded-xl border border-rose-500/20">Mã PIN không chính xác!</p>
                     </div>
                     <button onclick="verifyAdmin()" class="w-full bg-white text-black hover:bg-gray-200 font-black py-4.5 rounded-2xl transition mt-2 text-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] h-16">Đăng Nhập</button>

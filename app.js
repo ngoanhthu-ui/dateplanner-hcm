@@ -24,20 +24,29 @@ const db = getFirestore(app);
 const leadsCollection = collection(db, "leads");
 // PIN này chỉ dùng cho demo, không dùng cho production. Khi triển khai thật cần dùng Firebase Authentication và phân quyền theo partner.
 const ADMIN_DEMO_PIN = "DP2026B2B!";
-const LEGACY_COMMISSION_FALLBACK = 10000;
 const VOUCHER_VALID_DAYS = 7;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const BASE_YEAR = 2026;
-const DEFAULT_INFLATION_RATE = 0.04;
-const TIER_CONFIG = {
-    basic: { baseFee: 8000, rate: 0.05 },
-    growth: { baseFee: 12000, rate: 0.07 },
-    premium: { baseFee: 18000, rate: 0.09 }
-};
-const VISIBILITY_FACTOR = {
-    normal: 1,
-    mood: 1.15,
-    featured: 1.3
+const DEFAULT_PARTNER_PACKAGE = 'Basic';
+const DEFAULT_VOUCHER_VALUE = 50000;
+const PARTNER_PACKAGES = {
+    Basic: {
+        platformFee: 0,
+        cpsRate: 0.05,
+        voucherBudget: 300000,
+        deposit: 0
+    },
+    Growth: {
+        platformFee: 299000,
+        cpsRate: 0.07,
+        voucherBudget: 1000000,
+        deposit: 500000
+    },
+    Premium: {
+        platformFee: 799000,
+        cpsRate: 0.10,
+        voucherBudget: 3000000,
+        deposit: 1000000
+    }
 };
 const EMAILJS_PUBLIC_KEY = "RU8QbESICVGc8h_rl";
 const EMAILJS_SERVICE_ID = "service_2026";
@@ -47,17 +56,29 @@ const ADMIN_LOCKOUT_MS = 30 * 1000;
 let adminFailedAttempts = 0;
 let adminLockedUntil = 0;
 const LEAD_STATUSES = {
-    pending: {
-        label: 'Pending',
-        csvLabel: 'pending - da lay voucher, chua xac nhan dung',
+    issued: {
+        label: 'Issued',
+        csvLabel: 'issued - da nhan voucher, chua den quan',
         badgeClass: 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30',
-        icon: 'fa-clock'
+        icon: 'fa-ticket'
     },
-    used: {
-        label: 'Used',
-        csvLabel: 'used - da xac nhan dung tai quan',
-        badgeClass: 'bg-green-500/20 text-green-400 border border-green-500/30',
-        icon: 'fa-check-circle'
+    used_pending_bill: {
+        label: 'Used / Pending Bill',
+        csvLabel: 'used_pending_bill - da dung voucher, cho nhap bill',
+        badgeClass: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+        icon: 'fa-receipt'
+    },
+    reconciled: {
+        label: 'Reconciled',
+        csvLabel: 'reconciled - da nhap bill va tinh CPS',
+        badgeClass: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+        icon: 'fa-calculator'
+    },
+    settled: {
+        label: 'Settled',
+        csvLabel: 'settled - da doi soat va ghi nhan doanh thu',
+        badgeClass: 'bg-green-500/20 text-green-300 border border-green-500/30',
+        icon: 'fa-circle-check'
     },
     expired: {
         label: 'Expired',
@@ -70,6 +91,12 @@ const LEAD_STATUSES = {
         csvLabel: 'cancelled - huy/khong hop le',
         badgeClass: 'bg-red-500/20 text-red-300 border border-red-500/30',
         icon: 'fa-ban'
+    },
+    disputed: {
+        label: 'Disputed',
+        csvLabel: 'disputed - giao dich co tranh chap',
+        badgeClass: 'bg-violet-500/20 text-violet-300 border border-violet-500/30',
+        icon: 'fa-triangle-exclamation'
     }
 };
 const VALID_LEAD_STATUSES = new Set(Object.keys(LEAD_STATUSES));
@@ -237,53 +264,106 @@ function getTrendingRankClass(index) {
     return rankClasses[index] || rankClasses[4];
 }
 
-function getInflationFactor() {
-    const currentYear = new Date().getFullYear();
-    return Math.pow(1 + DEFAULT_INFLATION_RATE, currentYear - BASE_YEAR);
+function formatVND(amount) {
+    const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(safeAmount);
 }
 
-function getQualityFactor(conversionRate = 0.3) {
-    const normalizedRate = Number.isFinite(Number(conversionRate)) ? Number(conversionRate) : 0.3;
-    const rateAsPercent = normalizedRate <= 1 ? normalizedRate * 100 : normalizedRate;
-
-    if (rateAsPercent < 20) return 0.9;
-    if (rateAsPercent > 40) return 1.1;
-    return 1.0;
+function toSafeNumber(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
 }
 
-function calculateCommission(combo, conversionRate) {
-    const tier = combo?.partnerTier || 'basic';
-    const tierConfig = TIER_CONFIG[tier] || TIER_CONFIG.basic;
-    const visibilityLevel = combo?.visibilityLevel || 'normal';
-    const visibilityFactor = VISIBILITY_FACTOR[visibilityLevel] || VISIBILITY_FACTOR.normal;
-    const estimatedAOV = Number(combo?.estimatedAOV || combo?.price || 0);
-    const baseFee = Number(combo?.baseFee || tierConfig.baseFee);
-    const commissionRate = Number(combo?.commissionRate || tierConfig.rate);
-    const inflationFactor = getInflationFactor();
-    const qualityFactor = getQualityFactor(conversionRate);
-    const variableCommission = estimatedAOV * commissionRate * inflationFactor * qualityFactor * visibilityFactor;
-    const commissionAmount = Math.round(Math.max(baseFee, variableCommission));
+function normalizePartnerPackage(value) {
+    const rawValue = String(value || '').trim().toLowerCase();
+    if (rawValue === 'premium') return 'Premium';
+    if (rawValue === 'growth') return 'Growth';
+    return DEFAULT_PARTNER_PACKAGE;
+}
+
+function getPartnerPackageConfig(packageName) {
+    return PARTNER_PACKAGES[normalizePartnerPackage(packageName)] || PARTNER_PACKAGES[DEFAULT_PARTNER_PACKAGE];
+}
+
+function getComboPartnerPackage(combo = {}) {
+    return normalizePartnerPackage(combo.partnerPackage || combo.partnerTier);
+}
+
+function getVoucherValueFromCombo(combo = {}) {
+    const discountText = String(combo.discount || '').trim().toUpperCase();
+    const comboPrice = toSafeNumber(combo.price, DEFAULT_VOUCHER_VALUE);
+    const percentMatch = discountText.match(/(\d+(?:[.,]\d+)?)\s*%/);
+    if (percentMatch) {
+        return Math.max(0, Math.round(comboPrice * Number(percentMatch[1].replace(',', '.')) / 100));
+    }
+
+    const kMatch = discountText.match(/(\d+(?:[.,]\d+)?)\s*K/);
+    if (kMatch) {
+        return Math.max(0, Math.round(Number(kMatch[1].replace(',', '.')) * 1000));
+    }
+
+    const numericDiscount = Number(discountText.replace(/[^\d]/g, ''));
+    return Number.isFinite(numericDiscount) && numericDiscount > 0 ? numericDiscount : DEFAULT_VOUCHER_VALUE;
+}
+
+function calculateCpsSettlement({ billAmount = 0, voucherValue = DEFAULT_VOUCHER_VALUE, cpsRate = PARTNER_PACKAGES.Basic.cpsRate } = {}) {
+    const safeBillAmount = Math.max(0, toSafeNumber(billAmount, 0));
+    const safeVoucherValue = Math.max(0, toSafeNumber(voucherValue, DEFAULT_VOUCHER_VALUE));
+    const safeCpsRate = Math.max(0, toSafeNumber(cpsRate, PARTNER_PACKAGES.Basic.cpsRate));
+    const cpsCommission = Math.round(safeBillAmount * safeCpsRate);
+    const rawNetReimbursement = safeVoucherValue - cpsCommission;
 
     return {
-        partnerTier: tier,
-        estimatedAOV,
-        commissionRate,
-        baseFee,
-        visibilityLevel,
-        inflationFactor,
-        qualityFactor,
-        visibilityFactor,
-        commissionAmount,
-        commissionFormulaText: `max(${baseFee}, ${estimatedAOV} x ${commissionRate} x ${inflationFactor.toFixed(4)} x ${qualityFactor.toFixed(2)} x ${visibilityFactor}) = ${commissionAmount}`
+        billAmount: safeBillAmount,
+        voucherValue: safeVoucherValue,
+        cpsRate: safeCpsRate,
+        cpsCommission,
+        netReimbursement: Math.max(0, rawNetReimbursement),
+        receivableDifference: rawNetReimbursement < 0 ? Math.abs(rawNetReimbursement) : 0
     };
 }
 
-function getLeadCommissionAmount(lead) {
-    return Number.isFinite(Number(lead?.commissionAmount)) ? Number(lead.commissionAmount) : LEGACY_COMMISSION_FALLBACK;
+function getLeadPartnerPackage(lead = {}) {
+    return normalizePartnerPackage(lead.partnerPackage || lead.partnerTier);
+}
+
+function getLeadVoucherCode(lead = {}) {
+    return lead.voucherCode || lead.code || '';
+}
+
+function getLeadVoucherValue(lead = {}) {
+    return Math.max(0, toSafeNumber(lead.voucherValue, DEFAULT_VOUCHER_VALUE));
+}
+
+function getLeadBillAmount(lead = {}) {
+    return Math.max(0, toSafeNumber(lead.billAmount, 0));
+}
+
+function getLeadCpsRate(lead = {}) {
+    const packageConfig = getPartnerPackageConfig(getLeadPartnerPackage(lead));
+    return Math.max(0, toSafeNumber(lead.cpsRate, packageConfig.cpsRate));
+}
+
+function getLeadFinancials(lead = {}) {
+    const calculated = calculateCpsSettlement({
+        billAmount: getLeadBillAmount(lead),
+        voucherValue: getLeadVoucherValue(lead),
+        cpsRate: getLeadCpsRate(lead)
+    });
+
+    return {
+        ...calculated,
+        cpsCommission: toSafeNumber(lead.cpsCommission, calculated.cpsCommission),
+        netReimbursement: toSafeNumber(lead.netReimbursement, calculated.netReimbursement),
+        receivableDifference: toSafeNumber(lead.receivableDifference, calculated.receivableDifference)
+    };
 }
 
 function normalizeLeadStatus(status) {
-    return VALID_LEAD_STATUSES.has(status) ? status : 'pending';
+    if (VALID_LEAD_STATUSES.has(status)) return status;
+    if (status === 'pending') return 'issued';
+    if (status === 'used') return 'used_pending_bill';
+    return 'issued';
 }
 
 function getLeadExpiryTimestamp(lead) {
@@ -296,7 +376,7 @@ function getEffectiveLeadStatus(lead) {
     const status = normalizeLeadStatus(lead?.status);
     const expiresAt = getLeadExpiryTimestamp(lead);
 
-    if (status === 'pending' && expiresAt && expiresAt < Date.now()) {
+    if (status === 'issued' && expiresAt && expiresAt < Date.now()) {
         return 'expired';
     }
 
@@ -358,8 +438,12 @@ async function sendVoucherEmail(leadData, selectedCombo) {
 }
 
 function getLeadStatusTimestamp(lead, status = getEffectiveLeadStatus(lead)) {
-    if (status === 'used') return lead.usedAt || '';
+    if (status === 'issued') return lead.issuedAt || lead.date || formatLeadDateTime(lead.timestamp);
+    if (status === 'used_pending_bill') return lead.usedAt || '';
+    if (status === 'reconciled') return lead.reconciledAt || '';
+    if (status === 'settled') return lead.settledAt || lead.reconciledAt || '';
     if (status === 'cancelled') return lead.cancelledAt || '';
+    if (status === 'disputed') return lead.disputedAt || '';
     if (status === 'expired') return lead.expiredAt || lead.expiresAtText || formatLeadDateTime(getLeadExpiryTimestamp(lead));
     return '';
 }
@@ -380,6 +464,30 @@ function maskEmail(email) {
     return `${localPart.slice(0, visiblePrefixLength)}***@${domain}`;
 }
 
+function hydrateLeadFinancialFields(lead = {}) {
+    const partnerPackage = getLeadPartnerPackage(lead);
+    const packageConfig = getPartnerPackageConfig(partnerPackage);
+    const financials = getLeadFinancials({ ...lead, partnerPackage });
+    const issuedAt = lead.issuedAt || lead.createdAt || lead.date || formatLeadDateTime(lead.timestamp);
+
+    return {
+        ...lead,
+        partnerPackage,
+        voucherCode: getLeadVoucherCode(lead),
+        voucherValue: financials.voucherValue,
+        billAmount: financials.billAmount,
+        invoiceCode: lead.invoiceCode || '',
+        cpsRate: financials.cpsRate || packageConfig.cpsRate,
+        cpsCommission: financials.cpsCommission,
+        netReimbursement: financials.netReimbursement,
+        receivableDifference: financials.receivableDifference,
+        issuedAt,
+        usedAt: lead.usedAt || '',
+        reconciledAt: lead.reconciledAt || '',
+        settledAt: lead.settledAt || ''
+    };
+}
+
 // Biến lưu trữ data toàn cục
 window.cloudLeads = [];
 let isSubmittingLead = false;
@@ -388,7 +496,7 @@ let isSubmittingLead = false;
 onSnapshot(leadsCollection, (snapshot) => {
     window.cloudLeads = [];
     snapshot.forEach((doc) => {
-        const lead = doc.data();
+        const lead = hydrateLeadFinancialFields(doc.data());
         window.cloudLeads.push({
             firebaseId: doc.id,
             ...lead,
@@ -1502,9 +1610,10 @@ function isDuplicateActiveLead(lead, normalizedEmail, normalizedPhone, selectedC
     const hasMatchingContact = normalizeLeadEmail(lead?.email) === normalizedEmail || normalizeLeadPhone(lead?.phone) === normalizedPhone;
     const hasMatchingCombo = isSameLeadCombo(lead, selectedCombo, comboTitle);
     const expiresAt = getLeadExpiryTimestamp(lead);
-    const isActivePending = leadStatus === 'pending' && (!expiresAt || expiresAt >= now);
+    const blocksDuplicateVoucher = ['issued', 'used_pending_bill', 'reconciled', 'settled'].includes(leadStatus);
+    const isActiveVoucher = blocksDuplicateVoucher && (!expiresAt || leadStatus !== 'issued' || expiresAt >= now);
 
-    return hasMatchingContact && hasMatchingCombo && (isActivePending || leadStatus === 'used');
+    return hasMatchingContact && hasMatchingCombo && isActiveVoucher;
 }
 
 function findDuplicateVoucherLead(normalizedEmail, normalizedPhone, selectedCombo, comboTitle) {
@@ -1712,11 +1821,12 @@ window.submitLead = async function() {
             return;
         }
 
-        const partnerLeads = activeLeads.filter(l => l?.partner === selectedCombo.partner);
-        const partnerUsedLeads = partnerLeads.filter(l => getEffectiveLeadStatus(l) === 'used');
-        const partnerConversionRate = partnerLeads.length > 0 ? partnerUsedLeads.length / partnerLeads.length : undefined;
-        const commissionSnapshot = calculateCommission(selectedCombo, partnerConversionRate);
         const expiresAt = now.getTime() + (VOUCHER_VALID_DAYS * DAY_IN_MS);
+        const partnerPackage = getComboPartnerPackage(selectedCombo);
+        const packageConfig = getPartnerPackageConfig(partnerPackage);
+        const voucherCode = generateVoucherCode();
+        const voucherValue = getVoucherValueFromCombo(selectedCombo);
+        const issuedAt = formatLeadDateTime(now.getTime());
 
         const leadData = {
             name,
@@ -1725,22 +1835,28 @@ window.submitLead = async function() {
             combo: selectedCombo.title || comboTitle,
             comboId: selectedCombo.id,
             partner: selectedCombo.partner,
-            code: generateVoucherCode(),
+            partnerPackage,
+            code: voucherCode,
+            voucherCode,
+            voucherValue,
             date: now.toLocaleDateString('vi-VN'),
             timestamp: now.getTime(),
             expiresAt,
             expiresAtText: formatLeadDateTime(expiresAt),
+            issuedAt,
+            usedAt: '',
+            billAmount: 0,
+            invoiceCode: '',
+            cpsRate: packageConfig.cpsRate,
+            cpsCommission: 0,
+            netReimbursement: voucherValue,
+            receivableDifference: 0,
+            reconciledAt: '',
+            settledAt: '',
             consent: true,
             consentText: "Đồng ý lưu thông tin để gửi E-Voucher và đối soát ưu đãi trong phạm vi demo/pilot",
             consentAt: now.getTime(),
-            partnerTier: commissionSnapshot.partnerTier,
-            estimatedAOV: commissionSnapshot.estimatedAOV,
-            commissionRate: commissionSnapshot.commissionRate,
-            baseFee: commissionSnapshot.baseFee,
-            visibilityLevel: commissionSnapshot.visibilityLevel,
-            commissionAmount: commissionSnapshot.commissionAmount,
-            commissionFormulaText: commissionSnapshot.commissionFormulaText,
-            status: 'pending'
+            status: 'issued'
         };
 
         try {
@@ -1872,6 +1988,38 @@ window.populatePartnerFilter = function() {
     selectEl.value = currentVal || 'all';
 };
 
+function renderFinanceBreakdown(summary) {
+    const revenueElement = document.getElementById('stat-revenue');
+    if (!revenueElement) return;
+
+    let breakdown = document.getElementById('admin-finance-breakdown');
+    if (!breakdown) {
+        const metricGrid = revenueElement.closest('.grid');
+        if (!metricGrid) return;
+        metricGrid.insertAdjacentHTML('afterend', `
+            <div id="admin-finance-breakdown" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-10">
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voucher reconciled</p><h4 id="stat-reconciled" class="text-2xl font-black text-white">0</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Voucher settled</p><h4 id="stat-settled" class="text-2xl font-black text-white">0</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Tổng bill đối soát</p><h4 id="stat-total-bill" class="text-2xl font-black text-white">0đ</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">CPS commission settled</p><h4 id="stat-cps-settled" class="text-2xl font-black text-orange-300">0đ</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Tổng platform fee</p><h4 id="stat-platform-fee" class="text-2xl font-black text-white">0đ</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Hoàn cho quán</p><h4 id="stat-reimbursement" class="text-2xl font-black text-green-300">0đ</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Chênh lệch cần thu</p><h4 id="stat-receivable" class="text-2xl font-black text-red-300">0đ</h4></div>
+                <div class="bg-[#0f0f13] border border-white/5 p-5 rounded-2xl"><p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Ghi chú</p><p class="text-xs text-gray-400 leading-relaxed">Doanh thu chỉ được ghi nhận khi voucher đã sử dụng, có bill đối soát và trạng thái settled.</p></div>
+            </div>
+        `);
+        breakdown = document.getElementById('admin-finance-breakdown');
+    }
+
+    setTextById('stat-reconciled', summary.statusCounts.reconciled || 0);
+    setTextById('stat-settled', summary.statusCounts.settled || 0);
+    setTextById('stat-total-bill', formatVND(summary.totalReconciledBill));
+    setTextById('stat-cps-settled', formatVND(summary.totalSettledCpsCommission));
+    setTextById('stat-platform-fee', formatVND(summary.totalPlatformFee));
+    setTextById('stat-reimbursement', formatVND(summary.totalReimbursement));
+    setTextById('stat-receivable', formatVND(summary.totalReceivableDifference));
+}
+
 window.renderAdminData = function() {
     const partnerFilter = document.getElementById('admin-partner-filter')?.value || 'all';
     const voucherQuery = String(document.getElementById('admin-voucher-search')?.value || '').trim().toLowerCase();
@@ -1888,6 +2036,10 @@ window.renderAdminData = function() {
         ? partnerLeads.filter(l => {
             const haystack = [
                 l.code,
+                l.voucherCode,
+                l.invoiceCode,
+                l.status,
+                l.partnerPackage,
                 l.comboId,
                 l.combo,
                 l.partner,
@@ -1897,16 +2049,48 @@ window.renderAdminData = function() {
             return haystack.includes(voucherQuery);
         })
         : partnerLeads;
-    
-    // TÍNH TOÁN DOANH THU THEO MÔ HÌNH THỰC TẾ (CPS - Chỉ tính voucher status = used)
-    const usedLeads = leads.filter(l => getEffectiveLeadStatus(l) === 'used'); 
-    const conversionRate = leads.length > 0 ? (usedLeads.length / leads.length) * 100 : 0;
-    const totalRevenue = usedLeads.reduce((sum, lead) => sum + getLeadCommissionAmount(lead), 0);
-    
-    document.getElementById('stat-leads').innerText = leads.length; // Tổng lượt lấy Voucher
-    document.getElementById('stat-vouchers').innerText = usedLeads.length; // Voucher đã sử dụng
-    document.getElementById('stat-conversion').innerText = `${conversionRate.toFixed(1)}%`; // Used / tổng leads
-    document.getElementById('stat-revenue').innerText = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalRevenue); // Doanh thu từ voucher used
+
+    const statusCounts = Object.keys(LEAD_STATUSES).reduce((acc, status) => {
+        acc[status] = 0;
+        return acc;
+    }, {});
+    leads.forEach((lead) => {
+        statusCounts[getEffectiveLeadStatus(lead)] = (statusCounts[getEffectiveLeadStatus(lead)] || 0) + 1;
+    });
+
+    const settledLeads = leads.filter((lead) => getEffectiveLeadStatus(lead) === 'settled');
+    const reconciledOrSettledLeads = leads.filter((lead) => ['reconciled', 'settled'].includes(getEffectiveLeadStatus(lead)));
+    const totalIssuedVouchers = leads.length;
+    const settledRate = totalIssuedVouchers > 0 ? (statusCounts.settled / totalIssuedVouchers) * 100 : 0;
+    const totalReconciledBill = reconciledOrSettledLeads.reduce((sum, lead) => sum + getLeadBillAmount(lead), 0);
+    const totalSettledCpsCommission = settledLeads.reduce((sum, lead) => sum + getLeadFinancials(lead).cpsCommission, 0);
+    const totalReimbursement = reconciledOrSettledLeads.reduce((sum, lead) => sum + getLeadFinancials(lead).netReimbursement, 0);
+    const totalReceivableDifference = reconciledOrSettledLeads.reduce((sum, lead) => sum + getLeadFinancials(lead).receivableDifference, 0);
+    const platformFeeByPartner = new Map();
+    leads.forEach((lead) => {
+        const partnerName = lead.partner || 'Đối tác khác';
+        const partnerPackage = getLeadPartnerPackage(lead);
+        const packageFee = getPartnerPackageConfig(partnerPackage).platformFee;
+        if (!platformFeeByPartner.has(partnerName) || packageFee > platformFeeByPartner.get(partnerName)) {
+            platformFeeByPartner.set(partnerName, packageFee);
+        }
+    });
+    const totalPlatformFee = [...platformFeeByPartner.values()].reduce((sum, fee) => sum + fee, 0);
+    const totalB2BRevenue = totalPlatformFee + totalSettledCpsCommission;
+
+    setTextById('stat-leads', totalIssuedVouchers);
+    setTextById('stat-vouchers', statusCounts.used_pending_bill || 0);
+    setTextById('stat-conversion', `${settledRate.toFixed(1)}%`);
+    setTextById('stat-revenue', formatVND(totalB2BRevenue));
+    renderFinanceBreakdown({
+        statusCounts,
+        totalReconciledBill,
+        totalSettledCpsCommission,
+        totalPlatformFee,
+        totalB2BRevenue,
+        totalReimbursement,
+        totalReceivableDifference
+    });
 
     tbody.innerHTML = '';
     if(leads.length === 0) {
@@ -1915,73 +2099,98 @@ window.renderAdminData = function() {
         noDataMsg.classList.add('hidden');
         
         // Hiển thị mới nhất lên trên
-        const sortedLeads = [...leads].sort((a,b) => b.timestamp - a.timestamp);
+        const sortedLeads = [...leads].sort((a,b) => toSafeNumber(b.timestamp, 0) - toSafeNumber(a.timestamp, 0));
         
-        sortedLeads.forEach(lead => {
+        sortedLeads.forEach((lead, index) => {
             const partnerName = lead.partner || 'Đối tác khác';
             const status = getEffectiveLeadStatus(lead);
-            const statusConfig = LEAD_STATUSES[status];
-            const isPending = status === 'pending';
-            const isUsed = status === 'used';
-            const partnerTier = lead.partnerTier || 'legacy';
-            const commissionAmount = getLeadCommissionAmount(lead);
+            const statusConfig = LEAD_STATUSES[status] || LEAD_STATUSES.issued;
+            const isIssued = status === 'issued';
+            const isUsedPendingBill = status === 'used_pending_bill';
+            const isReconciled = status === 'reconciled';
+            const partnerPackage = getLeadPartnerPackage(lead);
+            const financials = getLeadFinancials(lead);
+            const safeDomId = `lead-${String(lead.firebaseId || index).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+            const docIdForJs = JSON.stringify(lead.firebaseId || '');
             // UI che du lieu de giam rui ro khi demo/public screen; Firebase va CSV van giu du lieu goc.
             const maskedPhone = maskPhone(lead.phone);
             const maskedEmail = maskEmail(lead.email);
             const safeLeadName = escapeHTML(lead.name || 'Khách demo');
             const safeComboName = escapeHTML(lead.combo || 'Lộ trình DatePlanner');
             const safePartnerName = escapeHTML(partnerName);
-            const safePartnerTier = escapeHTML(partnerTier);
-            const safeVoucherCode = escapeHTML(lead.code || 'N/A');
-            const safeLeadDate = escapeHTML(lead.date || formatLeadDateTime(lead.timestamp) || '');
-            
-            // Render Giao diện Trạng thái
-            let statusBadge = isUsed 
-                ? `<span class="bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="fa-solid fa-check-circle mr-1"></i>Đã sử dụng</span>
-                   <div class="text-gray-500 text-[10px] mt-1 font-medium">${lead.usedAt || ''}</div>`
-                : `<span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider"><i class="fa-solid fa-clock mr-1"></i>Chờ khách đến</span>`;
-            {
-                const statusTimestamp = getLeadStatusTimestamp(lead, status);
-                statusBadge = `
-                    <span class="${statusConfig.badgeClass} px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider inline-flex items-center">
-                        <i class="fa-solid ${statusConfig.icon} mr-1"></i>${statusConfig.label}
-                    </span>
-                    ${statusTimestamp ? `<div class="text-gray-500 text-[10px] mt-1 font-medium">${escapeHTML(statusTimestamp)}</div>` : ''}
-                `;
-            }
-            
-            // Nút bấm cho Thu ngân (Chỉ hiện khi chưa dùng)
-            let actionBtn = !isPending
-                ? `` 
-                : `<button onclick="window.confirmVoucher('${lead.firebaseId}')" class="mt-2 w-full text-xs bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded shadow-lg transition font-bold"><i class="fa-solid fa-qrcode mr-1"></i> Xác nhận mã</button>`;
+            const safePartnerPackage = escapeHTML(partnerPackage);
+            const safeVoucherCode = escapeHTML(getLeadVoucherCode(lead) || 'N/A');
+            const statusTimestamp = getLeadStatusTimestamp(lead, status);
+            const statusBadge = `
+                <span class="${statusConfig.badgeClass} px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider inline-flex items-center">
+                    <i class="fa-solid ${statusConfig.icon} mr-1"></i>${statusConfig.label}
+                </span>
+                ${statusTimestamp ? `<div class="text-gray-500 text-[10px] mt-1 font-medium">${escapeHTML(statusTimestamp)}</div>` : ''}
+            `;
+            const packageOptions = Object.keys(PARTNER_PACKAGES).map((packageName) => (
+                `<option value="${packageName}" ${packageName === partnerPackage ? 'selected' : ''}>${packageName}</option>`
+            )).join('');
+            let actionBtn = '';
 
-            if (isPending) {
-                actionBtn += `<button onclick="window.cancelVoucher('${lead.firebaseId}')" class="mt-2 w-full text-xs bg-white/5 hover:bg-red-500/20 text-red-300 border border-red-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-ban mr-1"></i> Cancelled</button>`;
+            if (isIssued) {
+                actionBtn = `
+                    <button onclick='window.confirmVoucher(${docIdForJs})' class="w-full text-xs bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded shadow-lg transition font-bold"><i class="fa-solid fa-qrcode mr-1"></i> Xác nhận đã dùng</button>
+                    <button onclick='window.cancelVoucher(${docIdForJs})' class="mt-2 w-full text-xs bg-white/5 hover:bg-red-500/20 text-red-300 border border-red-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-ban mr-1"></i> Cancelled</button>
+                `;
+            } else if (isUsedPendingBill) {
+                actionBtn = `
+                    <div class="space-y-2 min-w-[220px]">
+                        <input id="${safeDomId}-invoice" type="text" maxlength="40" placeholder="Mã hóa đơn" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <input id="${safeDomId}-bill" type="number" min="0" step="1000" placeholder="Tổng bill" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <input id="${safeDomId}-voucher" type="number" min="0" step="1000" value="${financials.voucherValue}" placeholder="Giá trị voucher" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <select id="${safeDomId}-package" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">${packageOptions}</select>
+                        <button onclick='window.reconcileVoucherFromRow(${docIdForJs}, "${safeDomId}")' class="w-full text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-calculator mr-1"></i> Nhập bill đối soát</button>
+                    </div>
+                `;
+            } else if (isReconciled) {
+                actionBtn = `
+                    <button onclick='window.settleVoucher(${docIdForJs})' class="w-full text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-lg transition font-bold"><i class="fa-solid fa-circle-check mr-1"></i> Xác nhận settled</button>
+                    <button onclick='window.disputeVoucher(${docIdForJs})' class="mt-2 w-full text-xs bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Disputed</button>
+                `;
             }
 
             tbody.innerHTML += `
                 <tr class="hover:bg-white/5 transition border-b border-white/5">
-                    <td class="px-6 py-4 font-bold text-gray-200">${safeLeadName}</td>
                     <td class="px-6 py-4">
-                        <div class="text-gray-300 text-xs mb-1"><i class="fa-solid fa-phone mr-1 text-gray-500"></i> ${escapeHTML(maskedPhone)}</div>
+                        <div class="font-bold text-gray-200">${safeLeadName}</div>
+                        <div class="text-gray-300 text-xs mt-1"><i class="fa-solid fa-phone mr-1 text-gray-500"></i> ${escapeHTML(maskedPhone)}</div>
                         <div class="text-gray-400 text-xs"><i class="fa-solid fa-envelope mr-1 text-gray-500"></i> ${escapeHTML(maskedEmail)}</div>
                     </td>
                     <td class="px-6 py-4">
                         <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs mb-2 inline-block truncate max-w-[200px] font-bold">${safeComboName}</span><br>
                         <span class="text-gray-400 text-xs font-medium"><i class="fa-solid fa-store mr-1 text-yellow-500"></i> ${safePartnerName}</span>
-                        <div class="text-gray-500 text-xs mt-1 font-medium">Tier: <span class="text-gray-300 uppercase">${safePartnerTier}</span></div>
+                        <div class="text-gray-500 text-xs mt-1 font-medium">Gói: <span class="text-gray-300">${safePartnerPackage}</span></div>
                     </td>
                     <td class="px-6 py-4">
                         <span class="text-white font-black font-mono block mb-1 tracking-widest text-sm">${safeVoucherCode}</span>
-                        <span class="text-gray-500 text-xs font-medium">${safeLeadDate}</span>
+                        <span class="text-gray-400 text-xs font-medium">${formatVND(financials.voucherValue)}</span>
+                        <div class="mt-2">${statusBadge}</div>
                     </td>
                     <td class="px-6 py-4">
-                        <span class="text-rose-300 font-black">${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(commissionAmount)}</span>
-                        <div class="text-gray-500 text-[10px] mt-1 font-medium">${lead.commissionAmount ? 'Snapshot' : 'Fallback lead cu'}</div>
+                        <div class="text-gray-300 text-xs">Mã HĐ: <span class="text-white font-bold">${escapeHTML(lead.invoiceCode || '-')}</span></div>
+                        <div class="text-rose-200 font-black mt-1">${formatVND(financials.billAmount)}</div>
                     </td>
                     <td class="px-6 py-4">
-                        ${statusBadge}
-                        ${actionBtn}
+                        <div class="text-gray-400 text-xs">${(financials.cpsRate * 100).toFixed(0)}%</div>
+                        <div class="text-orange-300 font-black">${formatVND(financials.cpsCommission)}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-green-300 font-bold">${formatVND(financials.netReimbursement)}</div>
+                        <div class="text-red-300 text-xs mt-1">Thu thêm: ${formatVND(financials.receivableDifference)}</div>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-gray-400 leading-relaxed">
+                        <div>Issued: ${escapeHTML(lead.issuedAt || '-')}</div>
+                        <div>Used: ${escapeHTML(lead.usedAt || '-')}</div>
+                        <div>Reconciled: ${escapeHTML(lead.reconciledAt || '-')}</div>
+                        <div>Settled: ${escapeHTML(lead.settledAt || '-')}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        ${actionBtn || '<span class="text-gray-600 text-xs font-bold">Không có thao tác</span>'}
                     </td>
                 </tr>
             `;
@@ -1991,18 +2200,19 @@ window.renderAdminData = function() {
 
 window.confirmVoucher = async function(docId) {
     const lead = window.cloudLeads.find(item => item.firebaseId === docId);
-    if (lead && getEffectiveLeadStatus(lead) !== 'pending') {
-        alert("Chi voucher status pending moi co the chuyen sang used.");
+    if (lead && getEffectiveLeadStatus(lead) !== 'issued') {
+        alert("Chỉ voucher status issued mới có thể chuyển sang used_pending_bill.");
         return;
     }
 
-    if(confirm("Xác nhận khách hàng đã đến quán và sử dụng E-Voucher này?\n(Hành động này sẽ ghi nhận commission snapshot của voucher used cho DatePlanner)")) {
+    if(confirm("Xác nhận khách hàng đã đến quán và sử dụng E-Voucher này?\nTrạng thái sẽ chuyển sang used_pending_bill và chưa ghi nhận doanh thu.")) {
         try {
             const leadRef = doc(db, "leads", docId);
+            const nowText = formatLeadDateTime(Date.now());
             await updateDoc(leadRef, {
-                status: 'used',
-                statusUpdatedAt: new Date().getTime(),
-                usedAt: new Date().toLocaleTimeString('vi-VN') + ' - ' + new Date().toLocaleDateString('vi-VN')
+                status: 'used_pending_bill',
+                statusUpdatedAt: Date.now(),
+                usedAt: nowText
             });
         } catch(e) {
             console.error("Lỗi cập nhật: ", e);
@@ -2013,8 +2223,8 @@ window.confirmVoucher = async function(docId) {
 
 window.cancelVoucher = async function(docId) {
     const lead = window.cloudLeads.find(item => item.firebaseId === docId);
-    if (lead && getEffectiveLeadStatus(lead) !== 'pending') {
-        alert("Chi voucher status pending moi co the chuyen sang cancelled.");
+    if (lead && getEffectiveLeadStatus(lead) !== 'issued') {
+        alert("Chỉ voucher status issued mới có thể chuyển sang cancelled.");
         return;
     }
 
@@ -2023,13 +2233,110 @@ window.cancelVoucher = async function(docId) {
             const leadRef = doc(db, "leads", docId);
             await updateDoc(leadRef, {
                 status: 'cancelled',
-                statusUpdatedAt: new Date().getTime(),
-                cancelledAt: new Date().toLocaleTimeString('vi-VN') + ' - ' + new Date().toLocaleDateString('vi-VN')
+                statusUpdatedAt: Date.now(),
+                cancelledAt: formatLeadDateTime(Date.now())
             });
         } catch(e) {
             console.error("Loi cap nhat cancelled: ", e);
             alert("Loi ket noi Dam may!");
         }
+    }
+};
+
+window.reconcileVoucherFromRow = async function(docId, domId) {
+    const invoiceCode = String(document.getElementById(`${domId}-invoice`)?.value || '').trim();
+    const billAmount = toSafeNumber(document.getElementById(`${domId}-bill`)?.value, NaN);
+    const voucherValue = toSafeNumber(document.getElementById(`${domId}-voucher`)?.value, DEFAULT_VOUCHER_VALUE);
+    const partnerPackage = normalizePartnerPackage(document.getElementById(`${domId}-package`)?.value);
+
+    if (!invoiceCode) {
+        alert("Vui lòng nhập mã hóa đơn.");
+        return;
+    }
+    if (!Number.isFinite(billAmount) || billAmount <= 0) {
+        alert("Tổng bill đối soát phải lớn hơn 0.");
+        return;
+    }
+
+    const lead = window.cloudLeads.find(item => item.firebaseId === docId);
+    if (lead && getEffectiveLeadStatus(lead) !== 'used_pending_bill') {
+        alert("Chỉ voucher used_pending_bill mới được nhập bill đối soát.");
+        return;
+    }
+
+    const packageConfig = getPartnerPackageConfig(partnerPackage);
+    const settlement = calculateCpsSettlement({
+        billAmount,
+        voucherValue,
+        cpsRate: packageConfig.cpsRate
+    });
+
+    if (!confirm(`Xác nhận đối soát bill ${invoiceCode}?\nCPS commission: ${formatVND(settlement.cpsCommission)}\nHoàn cho quán: ${formatVND(settlement.netReimbursement)}\nChênh lệch cần thu: ${formatVND(settlement.receivableDifference)}`)) {
+        return;
+    }
+
+    try {
+        const leadRef = doc(db, "leads", docId);
+        await updateDoc(leadRef, {
+            partnerPackage,
+            voucherValue: settlement.voucherValue,
+            invoiceCode,
+            billAmount: settlement.billAmount,
+            cpsRate: settlement.cpsRate,
+            cpsCommission: settlement.cpsCommission,
+            netReimbursement: settlement.netReimbursement,
+            receivableDifference: settlement.receivableDifference,
+            reconciledAt: formatLeadDateTime(Date.now()),
+            status: 'reconciled',
+            statusUpdatedAt: Date.now()
+        });
+    } catch(e) {
+        console.error("Lỗi nhập bill đối soát: ", e);
+        alert("Lỗi kết nối Đám mây!");
+    }
+};
+
+window.settleVoucher = async function(docId) {
+    const lead = window.cloudLeads.find(item => item.firebaseId === docId);
+    if (lead && getEffectiveLeadStatus(lead) !== 'reconciled') {
+        alert("Chỉ voucher reconciled mới có thể chuyển sang settled.");
+        return;
+    }
+
+    if (!confirm("Xác nhận settled giao dịch này?\nSau bước này CPS commission mới được tính vào doanh thu B2B.")) return;
+
+    try {
+        const leadRef = doc(db, "leads", docId);
+        await updateDoc(leadRef, {
+            status: 'settled',
+            settledAt: formatLeadDateTime(Date.now()),
+            statusUpdatedAt: Date.now()
+        });
+    } catch(e) {
+        console.error("Lỗi xác nhận settled: ", e);
+        alert("Lỗi kết nối Đám mây!");
+    }
+};
+
+window.disputeVoucher = async function(docId) {
+    const lead = window.cloudLeads.find(item => item.firebaseId === docId);
+    if (lead && !['used_pending_bill', 'reconciled'].includes(getEffectiveLeadStatus(lead))) {
+        alert("Chỉ voucher used_pending_bill hoặc reconciled mới có thể chuyển sang disputed.");
+        return;
+    }
+
+    if (!confirm("Chuyển giao dịch này sang trạng thái disputed? Giao dịch disputed không được tính doanh thu.")) return;
+
+    try {
+        const leadRef = doc(db, "leads", docId);
+        await updateDoc(leadRef, {
+            status: 'disputed',
+            disputedAt: formatLeadDateTime(Date.now()),
+            statusUpdatedAt: Date.now()
+        });
+    } catch(e) {
+        console.error("Lỗi cập nhật disputed: ", e);
+        alert("Lỗi kết nối Đám mây!");
     }
 };
 
@@ -2062,33 +2369,33 @@ window.exportToCSV = function() {
     if (leads.length === 0) { alert("Chưa có dữ liệu để xuất file!"); return; }
 
     const csvEscape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    let csvContent = "DatePlanner demo internal reconciliation export - contains full contact data for pilot use only\n";
-    csvContent += "Họ tên,SĐT,Email,Combo,Đối tác,Partner Tier,Estimated AOV,Commission Rate,Base Fee,Commission Amount,Commission Formula,Visibility Level,Mã voucher,Trạng thái,Ngày tạo,Hết hạn,Consent,Consent At,Ngày cập nhật trạng thái nếu có\n";
+    let csvContent = "DatePlanner CPS reconciliation export - contains full contact data for pilot use only\n";
+    csvContent += "Họ tên,Số điện thoại,Email,Combo,Đối tác,Gói đối tác,Mã voucher,Trạng thái,Giá trị voucher,Mã hóa đơn,Bill đối soát,CPS rate,CPS commission,Số tiền hoàn cho quán,Khoản chênh lệch cần thu,Ngày issued,Ngày used,Ngày reconciled,Ngày settled\n";
 
     leads.forEach(row => {
         const status = getEffectiveLeadStatus(row);
-        let statusText = LEAD_STATUSES[status].csvLabel;
-        let usedTime = getLeadStatusTimestamp(row, status);
+        const statusText = (LEAD_STATUSES[status] || LEAD_STATUSES.issued).csvLabel;
+        const financials = getLeadFinancials(row);
         csvContent += [
             row.name,
             row.phone,
             row.email,
             row.combo,
-            row.partner || 'Đối tác khác',
-            row.partnerTier || 'legacy',
-            row.estimatedAOV || '',
-            row.commissionRate || '',
-            row.baseFee || '',
-            getLeadCommissionAmount(row),
-            row.commissionFormulaText || '',
-            row.visibilityLevel || '',
-            row.code,
+            row.partner || 'Doi tac khac',
+            getLeadPartnerPackage(row),
+            getLeadVoucherCode(row),
             statusText,
-            row.date,
-            row.expiresAtText || formatLeadDateTime(row.expiresAt),
-            row.consent ? 'yes' : 'unknown',
-            formatLeadDateTime(row.consentAt),
-            usedTime
+            financials.voucherValue,
+            row.invoiceCode || '',
+            financials.billAmount,
+            financials.cpsRate,
+            financials.cpsCommission,
+            financials.netReimbursement,
+            financials.receivableDifference,
+            row.issuedAt || row.date || formatLeadDateTime(row.timestamp),
+            row.usedAt || '',
+            row.reconciledAt || '',
+            row.settledAt || ''
         ].map(csvEscape).join(',') + '\n';
     });
 

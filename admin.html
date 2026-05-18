@@ -106,7 +106,9 @@
                 <div class="lg:col-span-2 bg-[#0f0f13] border border-white/5 rounded-3xl flex flex-col h-[650px] shadow-xl overflow-hidden">
                     <div class="p-6 border-b border-gray-800 flex flex-wrap gap-4 justify-between items-center bg-[#171717]">
                         <h3 class="font-bold text-xl text-white"><i class="fa-solid fa-database text-blue-400 mr-2"></i>Dữ Liệu Khách Hàng</h3>
-                        <div class="flex items-center gap-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <label for="admin-voucher-search" class="sr-only">Tìm mã voucher</label>
+                            <input id="admin-voucher-search" type="search" inputmode="search" placeholder="Tìm mã voucher / QR" oninput="window.renderAdminData()" class="bg-[#0a0a0a] text-white border border-gray-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-rose-500 text-sm font-bold hover:bg-gray-900 transition shadow-inner w-full sm:w-48">
                             <div class="relative">
                                 <select id="admin-partner-filter" onchange="window.renderAdminData()" class="bg-[#0a0a0a] text-white border border-gray-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-rose-500 appearance-none pr-10 text-sm font-bold hover:bg-gray-900 transition shadow-inner">
                                     <option value="all">Tất cả Đối tác</option>

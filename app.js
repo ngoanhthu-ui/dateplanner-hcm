@@ -1547,12 +1547,58 @@ function resetLeadFormAfterSubmit() {
     document.getElementById('lead-consent-error').classList.add('hidden');
 }
 
+function buildVoucherQRPayload(leadData = {}, selectedCombo = {}) {
+    const comboTitle = leadData.combo || selectedCombo?.title || '';
+    const comboId = leadData.comboId || selectedCombo?.id || '';
+    const discount = selectedCombo?.discount || leadData.discount || '';
+    const partner = leadData.partner || selectedCombo?.partner || '';
+    const expiresAt = leadData.expiresAt || '';
+
+    return [
+        'DP-VOUCHER',
+        `code=${leadData.code || ''}`,
+        `comboId=${comboId}`,
+        `combo=${comboTitle}`,
+        `discount=${discount}`,
+        `partner=${partner}`,
+        `expiresAt=${expiresAt}`
+    ].join('|');
+}
+
+function renderVoucherQRCode(leadData, selectedCombo) {
+    const qrContainer = document.getElementById('success-voucher-qr');
+    if (!qrContainer) return;
+
+    const payload = buildVoucherQRPayload(leadData, selectedCombo);
+    qrContainer.innerHTML = '';
+    qrContainer.setAttribute('aria-label', `QR voucher ${leadData?.code || ''}`);
+    qrContainer.title = payload;
+
+    if (!window.QRCode) {
+        const fallback = document.createElement('div');
+        fallback.className = 'text-center leading-relaxed break-all max-w-[220px]';
+        fallback.textContent = leadData?.code || payload;
+        qrContainer.appendChild(fallback);
+        return;
+    }
+
+    new window.QRCode(qrContainer, {
+        text: payload,
+        width: 176,
+        height: 176,
+        colorDark: '#050505',
+        colorLight: '#ffffff',
+        correctLevel: window.QRCode.CorrectLevel.M
+    });
+}
+
 function showVoucherSuccessModal(leadData, selectedCombo, message = '') {
     document.getElementById('success-user-name').innerText = leadData.name || 'bạn';
     document.getElementById('success-combo-title').innerText = leadData.combo || selectedCombo.title;
     document.getElementById('success-voucher-code').innerText = leadData.code || '';
     document.getElementById('success-user-email').innerText = leadData.email || '';
     document.getElementById('success-voucher-discount').innerText = `Giảm ngay ${selectedCombo.discount}`;
+    renderVoucherQRCode(leadData, selectedCombo);
 
     const emailElement = document.getElementById('success-user-email');
     const emailBox = emailElement?.closest('.bg-violet-500\\/10');
@@ -1695,6 +1741,7 @@ window.submitLead = async function() {
     document.getElementById('success-user-email').innerText = email;
     document.getElementById('success-voucher-discount').innerText = `Giảm ngay ${selectedCombo.discount}`;
     document.getElementById('success-voucher-message')?.classList.add('hidden');
+    renderVoucherQRCode(leadData, selectedCombo);
 
     window.closeLeadForm();
     
@@ -1819,15 +1866,29 @@ window.populatePartnerFilter = function() {
 
 window.renderAdminData = function() {
     const partnerFilter = document.getElementById('admin-partner-filter')?.value || 'all';
+    const voucherQuery = String(document.getElementById('admin-voucher-search')?.value || '').trim().toLowerCase();
     const tbody = document.getElementById('leads-table-body');
     const noDataMsg = document.getElementById('no-data-msg');
     
     if(!tbody) return;
 
     // Lọc data Firebase
-    const leads = partnerFilter === 'all' 
+    const partnerLeads = partnerFilter === 'all' 
         ? window.cloudLeads 
         : window.cloudLeads.filter(l => (l.partner || 'Đối tác khác') === partnerFilter);
+    const leads = voucherQuery
+        ? partnerLeads.filter(l => {
+            const haystack = [
+                l.code,
+                l.comboId,
+                l.combo,
+                l.partner,
+                l.discount
+            ].map(value => String(value || '').toLowerCase()).join('|');
+
+            return haystack.includes(voucherQuery);
+        })
+        : partnerLeads;
     
     // TÍNH TOÁN DOANH THU THEO MÔ HÌNH THỰC TẾ (CPS - Chỉ tính voucher status = used)
     const usedLeads = leads.filter(l => getEffectiveLeadStatus(l) === 'used'); 

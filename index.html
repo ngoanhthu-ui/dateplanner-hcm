@@ -1219,6 +1219,10 @@
                             <div class="bg-[#07070A] border border-rose-500/25 rounded-2xl py-4 px-6 mb-5 w-full text-center">
                                 <p id="success-voucher-code" class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-300 via-orange-200 to-violet-300 tracking-[0.2em] font-mono"></p>
                             </div>
+                            <div class="w-full flex flex-col items-center mb-5">
+                                <p class="text-xs text-orange-200 mb-3 uppercase tracking-widest font-bold">QR đối soát</p>
+                                <div id="success-voucher-qr" class="bg-white p-3 rounded-2xl shadow-lg max-w-full overflow-hidden flex items-center justify-center text-xs text-zinc-700 font-bold"></div>
+                            </div>
                             <div id="success-voucher-discount" class="btn-gradient px-6 py-2 rounded-full text-sm font-black text-white"></div>
                         </div>
                     </div>
@@ -1301,7 +1305,9 @@
                 <div class="lg:col-span-2 bg-[#0f0f13] border border-white/5 rounded-3xl flex flex-col h-[650px] shadow-xl overflow-hidden">
                     <div class="p-6 border-b border-gray-800 flex flex-wrap gap-4 justify-between items-center bg-[#171717]">
                         <h3 class="font-bold text-xl text-white"><i class="fa-solid fa-cloud text-blue-400 mr-2"></i>Dữ Liệu Khách Hàng (Cloud DB)</h3>
-                        <div class="flex items-center gap-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <label for="admin-voucher-search" class="sr-only">Tìm mã voucher</label>
+                            <input id="admin-voucher-search" type="search" inputmode="search" placeholder="Tìm mã voucher / QR" oninput="window.renderAdminData()" class="bg-[#0a0a0a] text-white border border-gray-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-rose-500 text-sm font-bold hover:bg-gray-900 transition shadow-inner w-full sm:w-48">
                             <div class="relative">
                                 <select id="admin-partner-filter" onchange="window.renderAdminData()" class="bg-[#0a0a0a] text-white border border-gray-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-rose-500 appearance-none pr-10 text-sm font-bold hover:bg-gray-900 transition shadow-inner">
                                     <option value="all">Tất cả Đối tác</option>
@@ -1416,6 +1422,7 @@
     <script src="data.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <!-- Gọi file Logic vào sau để nó đọc dữ liệu -->
     <!-- Dùng type="module" nếu bên trong app.js có chứa code Firebase (import) -->

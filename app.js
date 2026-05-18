@@ -1569,27 +1569,36 @@ function renderVoucherQRCode(leadData, selectedCombo) {
     const qrContainer = document.getElementById('success-voucher-qr');
     if (!qrContainer) return;
 
-    const payload = buildVoucherQRPayload(leadData, selectedCombo);
-    qrContainer.innerHTML = '';
-    qrContainer.setAttribute('aria-label', `QR voucher ${leadData?.code || ''}`);
-    qrContainer.title = payload;
+    try {
+        const payload = buildVoucherQRPayload(leadData, selectedCombo);
+        qrContainer.innerHTML = '';
+        qrContainer.setAttribute('aria-label', `QR voucher ${leadData?.code || ''}`);
+        qrContainer.title = payload;
 
-    if (!window.QRCode) {
+        if (!window.QRCode) {
+            const fallback = document.createElement('div');
+            fallback.className = 'text-center leading-relaxed break-all max-w-[220px]';
+            fallback.textContent = leadData?.code || payload;
+            qrContainer.appendChild(fallback);
+            return;
+        }
+
+        new window.QRCode(qrContainer, {
+            text: payload,
+            width: 176,
+            height: 176,
+            colorDark: '#050505',
+            colorLight: '#ffffff',
+            correctLevel: window.QRCode.CorrectLevel?.M
+        });
+    } catch (error) {
+        console.error('Loi render QR voucher:', error);
+        qrContainer.innerHTML = '';
         const fallback = document.createElement('div');
         fallback.className = 'text-center leading-relaxed break-all max-w-[220px]';
-        fallback.textContent = leadData?.code || payload;
+        fallback.textContent = leadData?.code || 'QR chưa sẵn sàng';
         qrContainer.appendChild(fallback);
-        return;
     }
-
-    new window.QRCode(qrContainer, {
-        text: payload,
-        width: 176,
-        height: 176,
-        colorDark: '#050505',
-        colorLight: '#ffffff',
-        correctLevel: window.QRCode.CorrectLevel.M
-    });
 }
 
 function showVoucherSuccessModal(leadData, selectedCombo, message = '') {
@@ -1636,14 +1645,26 @@ if (consentCheckbox && submitButton) {
 window.submitLead = async function() {
     if (isSubmittingLead === true) return;
 
-    const name = getSafeLeadName(document.getElementById('lead-name').value);
-    const phone = document.getElementById('lead-phone').value.trim();
-    const email = document.getElementById('lead-email').value.trim().toLowerCase().slice(0, 120);
-    const hasConsent = document.getElementById('lead-consent').checked;
-    const comboTitle = document.getElementById('lead-combo-title').value;
-    const comboId = parseInt(document.getElementById('lead-combo-id').value);
+    const nameInput = document.getElementById('lead-name');
+    const phoneInput = document.getElementById('lead-phone');
+    const emailInput = document.getElementById('lead-email');
+    const consentInput = document.getElementById('lead-consent');
+    const comboIdInput = document.getElementById('lead-combo-id');
+    const comboTitleInput = document.getElementById('lead-combo-title');
     const currentSubmitButton = document.getElementById('lead-submit-btn');
-    const previousSubmitHtml = currentSubmitButton?.innerHTML || '';
+    const previousSubmitHtml = currentSubmitButton?.innerHTML || '<i class="fa-solid fa-ticket mr-2"></i>Nhận mã voucher';
+
+    if (!nameInput || !phoneInput || !emailInput || !consentInput || !comboIdInput) {
+        alert("Form nhận voucher chưa sẵn sàng. Vui lòng tải lại trang và thử lại.");
+        return;
+    }
+
+    const name = getSafeLeadName(nameInput.value);
+    const phone = phoneInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase().slice(0, 120);
+    const hasConsent = consentInput.checked;
+    const comboTitle = comboTitleInput?.value || '';
+    const comboId = Number(comboIdInput.value);
 
     // Validate dữ liệu
     if(!name || !phone || !email) { alert("Vui lòng điền đầy đủ thông tin!"); return; }
@@ -1659,108 +1680,95 @@ window.submitLead = async function() {
     }
 
     const selectedCombo = combos.find(c => c.id === comboId);
-    if (!selectedCombo) { alert("Khong tim thay combo. Vui long chon lai voucher."); return; }
+    if (!selectedCombo) {
+        alert("Không tìm thấy combo để tạo voucher. Bạn vui lòng mở lại chi tiết lộ trình và thử lại.");
+        return;
+    }
 
     isSubmittingLead = true;
     setLeadSubmitLoading(true);
 
     try {
-    const normalizedEmail = normalizeLeadEmail(email);
-    const normalizedPhone = normalizeLeadPhone(phone);
-    const duplicateLead = findDuplicateVoucherLead(normalizedEmail, normalizedPhone, selectedCombo, comboTitle);
-
-    if (duplicateLead) {
-        showVoucherSuccessModal(
-            duplicateLead,
+        const normalizedEmail = normalizeLeadEmail(email);
+        const normalizedPhone = normalizeLeadPhone(phone);
+        const activeLeads = Array.isArray(window.cloudLeads) ? window.cloudLeads : [];
+        const now = new Date();
+        const duplicateLead = activeLeads.find((lead) => isDuplicateActiveLead(
+            lead,
+            normalizedEmail,
+            normalizedPhone,
             selectedCombo,
-            "B\u1ea1n \u0111\u00e3 nh\u1eadn voucher n\u00e0y r\u1ed3i. M\u00ecnh hi\u1ec3n th\u1ecb l\u1ea1i m\u00e3 c\u0169 \u0111\u1ec3 tr\u00e1nh g\u1eedi email tr\u00f9ng nh\u00e9."
-        );
+            comboTitle,
+            now.getTime()
+        ));
+
+        if (duplicateLead) {
+            showVoucherSuccessModal(
+                duplicateLead,
+                selectedCombo,
+                "Bạn đã nhận voucher này rồi. Mình hiển thị lại mã cũ để tránh gửi email trùng nhé."
+            );
+            resetLeadFormAfterSubmit();
+            return;
+        }
+
+        const partnerLeads = activeLeads.filter(l => l?.partner === selectedCombo.partner);
+        const partnerUsedLeads = partnerLeads.filter(l => getEffectiveLeadStatus(l) === 'used');
+        const partnerConversionRate = partnerLeads.length > 0 ? partnerUsedLeads.length / partnerLeads.length : undefined;
+        const commissionSnapshot = calculateCommission(selectedCombo, partnerConversionRate);
+        const expiresAt = now.getTime() + (VOUCHER_VALID_DAYS * DAY_IN_MS);
+
+        const leadData = {
+            name,
+            phone,
+            email: normalizedEmail,
+            combo: selectedCombo.title || comboTitle,
+            comboId: selectedCombo.id,
+            partner: selectedCombo.partner,
+            code: generateVoucherCode(),
+            date: now.toLocaleDateString('vi-VN'),
+            timestamp: now.getTime(),
+            expiresAt,
+            expiresAtText: formatLeadDateTime(expiresAt),
+            consent: true,
+            consentText: "Đồng ý lưu thông tin để gửi E-Voucher và đối soát ưu đãi trong phạm vi demo/pilot",
+            consentAt: now.getTime(),
+            partnerTier: commissionSnapshot.partnerTier,
+            estimatedAOV: commissionSnapshot.estimatedAOV,
+            commissionRate: commissionSnapshot.commissionRate,
+            baseFee: commissionSnapshot.baseFee,
+            visibilityLevel: commissionSnapshot.visibilityLevel,
+            commissionAmount: commissionSnapshot.commissionAmount,
+            commissionFormulaText: commissionSnapshot.commissionFormulaText,
+            status: 'pending'
+        };
+
+        try {
+            await addDoc(leadsCollection, leadData);
+            console.log("Đã tạo voucher và đồng bộ lead lên Firebase.");
+        } catch (firebaseError) {
+            console.error("Lỗi Firebase khi tạo voucher:", firebaseError);
+            alert("Lỗi kết nối Đám mây. Voucher chưa được tạo, vui lòng thử lại!");
+            return;
+        }
+
+        showVoucherSuccessModal(leadData, selectedCombo);
         resetLeadFormAfterSubmit();
-        return;
-    }
 
-    const partnerLeads = window.cloudLeads.filter(l => l.partner === selectedCombo.partner);
-    const partnerUsedLeads = partnerLeads.filter(l => getEffectiveLeadStatus(l) === 'used');
-    const partnerConversionRate = partnerLeads.length > 0 ? partnerUsedLeads.length / partnerLeads.length : undefined;
-    const commissionSnapshot = calculateCommission(selectedCombo, partnerConversionRate);
-    const now = new Date();
-    const expiresAt = now.getTime() + (VOUCHER_VALID_DAYS * DAY_IN_MS);
-
-    const leadData = {
-        name: name, 
-        phone: phone, 
-        email: normalizedEmail, 
-        combo: comboTitle,
-        comboId: selectedCombo.id,
-        partner: selectedCombo.partner,
-        code: generateVoucherCode(),
-        date: now.toLocaleDateString('vi-VN'),
-        timestamp: now.getTime(),
-        expiresAt,
-        expiresAtText: formatLeadDateTime(expiresAt),
-        consent: true,
-        consentText: "Đồng ý lưu thông tin để gửi E-Voucher và đối soát ưu đãi trong phạm vi demo/pilot",
-        consentAt: now.getTime(),
-        partnerTier: commissionSnapshot.partnerTier,
-        estimatedAOV: commissionSnapshot.estimatedAOV,
-        commissionRate: commissionSnapshot.commissionRate,
-        baseFee: commissionSnapshot.baseFee,
-        visibilityLevel: commissionSnapshot.visibilityLevel,
-        commissionAmount: commissionSnapshot.commissionAmount,
-        commissionFormulaText: commissionSnapshot.commissionFormulaText,
-        status: 'pending' // Thêm trạng thái Chờ khách đến sử dụng
-    };
-
-    // 🚀 BẮN DỮ LIỆU LÊN FIREBASE CLOUD
-    try {
-        await addDoc(leadsCollection, leadData);
-        console.log("Tuyệt vời! Đã đồng bộ khách hàng lên Đám Mây.");
-    } catch (e) {
-        console.error("Lỗi khi lưu lên mây: ", e);
-        alert("Lỗi kết nối Đám mây. Vui lòng thử lại!");
-        return;
-    }
-
-    // Hiển thị giao diện Thành công
-    try {
-        const emailResult = await sendVoucherEmail(leadData, selectedCombo);
-        console.log("Email voucher da duoc gui qua EmailJS:", emailResult);
-    } catch (e) {
-        console.error("Loi khi gui email voucher qua EmailJS: ", {
-            status: e?.status,
-            text: e?.text,
-            message: e?.message,
-            error: e
-        });
-        alert("Voucher đã được tạo, nhưng email có thể chưa gửi được. Bạn hãy chụp lại mã voucher.");
-    }
-
-    document.getElementById('success-user-name').innerText = name;
-    document.getElementById('success-combo-title').innerText = selectedCombo.title;
-    document.getElementById('success-voucher-code').innerText = leadData.code;
-    document.getElementById('success-user-email').innerText = email;
-    document.getElementById('success-voucher-discount').innerText = `Giảm ngay ${selectedCombo.discount}`;
-    document.getElementById('success-voucher-message')?.classList.add('hidden');
-    renderVoucherQRCode(leadData, selectedCombo);
-
-    window.closeLeadForm();
-    
-    // Xóa Form
-    document.getElementById('lead-name').value = '';
-    document.getElementById('lead-phone').value = '';
-    document.getElementById('lead-email').value = '';
-    document.getElementById('lead-consent').checked = false;
-    updateLeadSubmitState();
-    document.getElementById('lead-consent-error').classList.add('hidden');
-
-    setTimeout(() => {
-        const modal = document.getElementById('booking-modal');
-        modal.classList.remove('hidden');
-        setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
-    }, 300);
-    } catch (e) {
-        console.error("Loi khong mong muon khi tao voucher: ", e);
-        alert("Co loi khi tao voucher. Vui long thu lai!");
+        try {
+            const emailResult = await sendVoucherEmail(leadData, selectedCombo);
+            console.log("Email voucher da duoc gui qua EmailJS:", emailResult);
+        } catch (emailError) {
+            console.error("Loi khi gui email voucher qua EmailJS:", {
+                status: emailError?.status,
+                text: emailError?.text,
+                message: emailError?.message
+            });
+            alert("Voucher đã tạo nhưng email có thể chưa gửi. Bạn hãy chụp lại mã voucher.");
+        }
+    } catch (error) {
+        console.error("Lỗi không mong muốn trong submitLead:", error);
+        alert("Có lỗi khi tạo voucher. Vui lòng thử lại!");
     } finally {
         isSubmittingLead = false;
         setLeadSubmitLoading(false, previousSubmitHtml);

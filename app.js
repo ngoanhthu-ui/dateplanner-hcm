@@ -4,7 +4,7 @@
 // Demo MVP only. Production must use Firebase Authentication, Firestore Security Rules,
 // server-side email sending/rate limiting, environment variables, and domain restrictions.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, getDocs, doc, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 // Demo only. Production must use Firebase Authentication and Security Rules.
 // Firebase API key is public client configuration, not a server secret.
@@ -22,6 +22,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const leadsCollection = collection(db, "leads");
+const combosCollection = collection(db, "combos");
 // PIN này chỉ dùng cho demo, không dùng cho production. Khi triển khai thật cần dùng Firebase Authentication và phân quyền theo partner.
 const ADMIN_DEMO_PIN = "DP2026B2B!";
 const VOUCHER_VALID_DAYS = 7;
@@ -166,10 +167,18 @@ function applyLocalComboImages() {
     if (typeof localComboImages === 'undefined' || !Array.isArray(combos)) return;
 
     combos.forEach((combo) => {
-        if (localComboImages[combo.id]) {
+        if (localComboImages[combo.id] && !combo.img) {
             combo.img = localComboImages[combo.id];
         }
     });
+}
+
+function getAllCombos() {
+    return Array.isArray(combos) ? combos : [];
+}
+
+function getVisibleCombos() {
+    return getAllCombos().filter(combo => combo?.isActive !== false && combo?.isDeleted !== true);
 }
 
 function getComboImage(combo) {
@@ -235,6 +244,236 @@ function getComboTypeBadge(combo) {
     }
     return '<span class="text-xs text-cyan-100 bg-cyan-500/15 border border-cyan-400/25 px-2.5 py-1 rounded-full font-bold shrink-0">Bình dân</span>';
 }
+
+function getNowText() {
+    return formatLeadDateTime(Date.now());
+}
+
+function normalizeComboRecord(combo = {}, firebaseId = '') {
+    const comboId = Number(combo.id);
+    const nowText = getNowText();
+
+    return {
+        id: Number.isFinite(comboId) ? comboId : Date.now(),
+        title: String(combo.title || '').trim(),
+        desc: String(combo.desc || '').trim(),
+        address: String(combo.address || '').trim(),
+        district: String(combo.district || '').trim(),
+        partner: String(combo.partner || '').trim(),
+        partnerPackage: normalizePartnerPackage(combo.partnerPackage),
+        discount: String(combo.discount || '').trim().toUpperCase(),
+        price: Math.round(toSafeNumber(combo.price, 0)),
+        category: ['low', 'mid', 'high'].includes(combo.category) ? combo.category : 'mid',
+        target: ['couple', 'group', 'both'].includes(combo.target) ? combo.target : 'both',
+        bookings: Math.max(0, Math.round(toSafeNumber(combo.bookings, 0))),
+        img: String(combo.img || '').trim(),
+        icon: String(combo.icon || 'fa-heart').trim(),
+        itinerary: Array.isArray(combo.itinerary) ? combo.itinerary : [],
+        isActive: combo.isActive !== false,
+        isDeleted: combo.isDeleted === true,
+        createdAt: combo.createdAt || nowText,
+        updatedAt: combo.updatedAt || nowText,
+        deletedAt: combo.deletedAt || '',
+        firebaseId
+    };
+}
+
+function setRuntimeCombos(nextCombos = []) {
+    if (!Array.isArray(combos)) return;
+    combos.splice(0, combos.length, ...nextCombos.map(combo => normalizeComboRecord(combo, combo.firebaseId)));
+    applyLocalComboImages();
+}
+
+function rerenderComboSurfaces() {
+    window.renderCombos?.();
+    window.renderTrendingCombos?.();
+    window.initTrendingAutoScroll?.();
+    window.populateInviteCombos?.();
+    window.renderComboCms?.();
+    window.renderCmsStats?.();
+}
+
+async function loadCombosFromFirestore() {
+    const snapshot = await getDocs(combosCollection);
+    return snapshot.docs.map(document => normalizeComboRecord(document.data(), document.id));
+}
+
+window.loadCombosFromFirestore = loadCombosFromFirestore;
+
+window.loadCombos = async function() {
+    try {
+        const firestoreCombos = await loadCombosFromFirestore();
+        if (firestoreCombos.length > 0) {
+            setRuntimeCombos(firestoreCombos.sort((a, b) => Number(a.id) - Number(b.id)));
+            window.comboSource = 'firestore';
+            rerenderComboSurfaces();
+            return getAllCombos();
+        }
+    } catch (error) {
+        console.error('Loi load combos tu Firestore:', error);
+    }
+
+    setRuntimeCombos(DEFAULT_COMBO_SEED.map(combo => normalizeComboRecord(combo, combo.firebaseId)));
+    window.comboSource = 'fallback';
+    rerenderComboSurfaces();
+    return getAllCombos();
+};
+
+function parseComboItinerary(value = '') {
+    const text = String(value || '').trim();
+    if (!text) return [];
+
+    if (text.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            throw new Error('Itinerary JSON chua hop le.');
+        }
+    }
+
+    return text.split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => {
+            const [time = '', activity = '', location = ''] = line.split('|').map(part => part.trim());
+            return { time, activity, location };
+        });
+}
+
+function stringifyComboItinerary(combo = {}) {
+    return getComboItinerary(combo)
+        .map(item => [item.time, item.activity, item.location].filter(Boolean).join(' | '))
+        .join('\n');
+}
+
+function validateComboData(comboData = {}) {
+    if (!comboData.title) return 'Vui long nhap ten combo.';
+    if (!comboData.partner) return 'Vui long nhap doi tac.';
+    if (!Object.prototype.hasOwnProperty.call(PARTNER_PACKAGES, comboData.partnerPackage)) return 'Goi doi tac chi nhan Basic, Growth hoac Premium.';
+    if (!Number.isInteger(comboData.price) || comboData.price <= 0) return 'Gia tham khao phai la so nguyen VND lon hon 0.';
+    if (!/^\d+(\.\d+)?%$|^\d+K$/i.test(comboData.discount)) return 'Uu dai phai dung dang 15%, 20%, 30K hoac 50K.';
+    if (!['low', 'mid', 'high'].includes(comboData.category)) return 'Nhom gia khong hop le.';
+    if (!['couple', 'group', 'both'].includes(comboData.target)) return 'Target khong hop le.';
+    return '';
+}
+
+function getNextComboId() {
+    return getAllCombos().reduce((max, combo) => Math.max(max, Number(combo.id) || 0), 0) + 1;
+}
+
+function getComboFormData() {
+    const idValue = Number(document.getElementById('cms-combo-id')?.value || 0);
+    const nowText = getNowText();
+    const comboData = {
+        id: Number.isFinite(idValue) && idValue > 0 ? idValue : getNextComboId(),
+        title: String(document.getElementById('cms-title')?.value || '').trim(),
+        desc: String(document.getElementById('cms-desc')?.value || '').trim(),
+        address: String(document.getElementById('cms-address')?.value || '').trim(),
+        district: String(document.getElementById('cms-district')?.value || '').trim(),
+        partner: String(document.getElementById('cms-partner')?.value || '').trim(),
+        partnerPackage: normalizePartnerPackage(document.getElementById('cms-partner-package')?.value),
+        discount: String(document.getElementById('cms-discount')?.value || '').trim().toUpperCase(),
+        price: Math.round(toSafeNumber(document.getElementById('cms-price')?.value, 0)),
+        category: document.getElementById('cms-category')?.value || 'mid',
+        target: document.getElementById('cms-target')?.value || 'both',
+        bookings: Math.max(0, Math.round(toSafeNumber(document.getElementById('cms-bookings')?.value, 0))),
+        img: String(document.getElementById('cms-img')?.value || '').trim(),
+        icon: String(document.getElementById('cms-icon')?.value || 'fa-heart').trim(),
+        itinerary: parseComboItinerary(document.getElementById('cms-itinerary')?.value || ''),
+        isActive: true,
+        isDeleted: false,
+        updatedAt: nowText
+    };
+
+    const existing = getAllCombos().find(combo => Number(combo.id) === Number(comboData.id));
+    comboData.createdAt = existing?.createdAt || nowText;
+    comboData.firebaseId = existing?.firebaseId || '';
+    return comboData;
+}
+
+async function findComboDocumentIdByComboId(comboId) {
+    const existingLocal = getAllCombos().find(combo => Number(combo.id) === Number(comboId));
+    if (existingLocal?.firebaseId) return existingLocal.firebaseId;
+
+    const snapshot = await getDocs(combosCollection);
+    const match = snapshot.docs.find(document => Number(document.data()?.id) === Number(comboId));
+    return match?.id || '';
+}
+
+async function ensureComboDocument(comboId) {
+    const existingId = await findComboDocumentIdByComboId(comboId);
+    if (existingId) return existingId;
+
+    const fallbackCombo = getAllCombos().find(combo => Number(combo.id) === Number(comboId));
+    if (!fallbackCombo) throw new Error('Khong tim thay combo.');
+
+    const documentId = `combo-${comboId}`;
+    const payload = normalizeComboRecord(fallbackCombo);
+    delete payload.firebaseId;
+    await setDoc(doc(db, 'combos', documentId), payload);
+    return documentId;
+}
+
+window.seedDefaultCombosToFirestore = async function() {
+    try {
+        const snapshot = await getDocs(combosCollection);
+        const existingIds = new Set(snapshot.docs.map(document => Number(document.data()?.id)).filter(Number.isFinite));
+        let createdCount = 0;
+
+        for (const combo of DEFAULT_COMBO_SEED) {
+            if (existingIds.has(Number(combo.id))) continue;
+            const payload = normalizeComboRecord(combo);
+            delete payload.firebaseId;
+            await setDoc(doc(db, 'combos', `combo-${payload.id}`), payload);
+            createdCount += 1;
+        }
+
+        await window.loadCombos();
+        alert(createdCount > 0 ? `Da dong bo ${createdCount} combo mau len Firestore.` : 'Combo mau da ton tai tren Firestore, khong tao trung.');
+    } catch (error) {
+        console.error('Loi seed combo:', error);
+        alert('Khong the dong bo combo mau len Firestore.');
+    }
+};
+
+window.createCombo = async function(comboData) {
+    const payload = normalizeComboRecord(comboData);
+    delete payload.firebaseId;
+    await addDoc(combosCollection, payload);
+    await window.loadCombos();
+};
+
+window.updateCombo = async function(comboId, comboData) {
+    const documentId = await ensureComboDocument(comboId);
+    const payload = normalizeComboRecord({ ...comboData, id: Number(comboId), updatedAt: getNowText() });
+    delete payload.firebaseId;
+    await updateDoc(doc(db, 'combos', documentId), payload);
+    await window.loadCombos();
+};
+
+window.softDeleteCombo = async function(comboId) {
+    if (!confirm('Xoa mem combo nay? Combo se bi an khoi client nhung khong bi xoa khoi Firestore.')) return;
+    const documentId = await ensureComboDocument(comboId);
+    await updateDoc(doc(db, 'combos', documentId), {
+        isDeleted: true,
+        isActive: false,
+        deletedAt: getNowText(),
+        updatedAt: getNowText()
+    });
+    await window.loadCombos();
+};
+
+window.toggleComboActive = async function(comboId) {
+    const combo = getAllCombos().find(item => Number(item.id) === Number(comboId));
+    if (!combo) return;
+    const documentId = await ensureComboDocument(comboId);
+    await updateDoc(doc(db, 'combos', documentId), {
+        isActive: combo.isActive === false,
+        updatedAt: getNowText()
+    });
+    await window.loadCombos();
+};
 
 function getMoodReason(moodType) {
     const reasons = {
@@ -522,6 +761,7 @@ function hydrateLeadFinancialFields(lead = {}) {
 
 // Biến lưu trữ data toàn cục
 window.cloudLeads = [];
+const DEFAULT_COMBO_SEED = Array.isArray(combos) ? JSON.parse(JSON.stringify(combos)) : [];
 let isSubmittingLead = false;
 
 // 🔴 LẮNG NGHE REAL-TIME: Bất cứ khi nào có khách đăng ký, tự động tải về Admin
@@ -542,6 +782,7 @@ onSnapshot(leadsCollection, (snapshot) => {
     if (adminView && !adminView.classList.contains('hidden')) {
         window.populatePartnerFilter();
         window.renderAdminData();
+        window.renderComboCms?.();
     }
 });
 
@@ -587,7 +828,7 @@ window.renderTrendingCombos = function() {
     const grid = document.getElementById('trending-grid');
     if (!grid) return;
 
-    const trendingCombos = [...combos]
+    const trendingCombos = getVisibleCombos()
         .sort((a, b) => Number(b.bookings || 0) - Number(a.bookings || 0))
         .slice(0, 5);
 
@@ -749,7 +990,8 @@ window.startRandomizer = function() {
     const result = document.getElementById('random-result');
     const details = document.getElementById('random-details');
     const button = document.getElementById('spin-btn');
-    if (!result || !details || !button || !Array.isArray(combos) || combos.length === 0) return;
+    const activeCombos = getVisibleCombos();
+    if (!result || !details || !button || activeCombos.length === 0) return;
 
     button.disabled = true;
     button.classList.add('opacity-60', 'cursor-not-allowed');
@@ -759,7 +1001,7 @@ window.startRandomizer = function() {
     let ticks = 0;
     const maxTicks = 14;
     const ticker = setInterval(() => {
-        const combo = combos[Math.floor(Math.random() * combos.length)];
+        const combo = activeCombos[Math.floor(Math.random() * activeCombos.length)];
         result.innerText = combo.title;
         result.classList.remove('text-gray-500', 'text-zinc-400');
         result.classList.add('text-white');
@@ -767,7 +1009,7 @@ window.startRandomizer = function() {
 
         if (ticks >= maxTicks) {
             clearInterval(ticker);
-            const selected = combos[Math.floor(Math.random() * combos.length)];
+            const selected = activeCombos[Math.floor(Math.random() * activeCombos.length)];
             result.innerText = selected.title;
             details.innerHTML = `
                 <div class="animate-fade-in-up text-left grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5 items-center">
@@ -795,7 +1037,8 @@ window.populateInviteCombos = function() {
     const select = document.getElementById('inv-combo');
     if (!select) return;
 
-    select.innerHTML = combos.map(combo => `<option value="${combo.id}">${combo.title}</option>`).join('');
+    const activeCombos = getVisibleCombos();
+    select.innerHTML = activeCombos.map(combo => `<option value="${combo.id}">${combo.title}</option>`).join('');
     window.updateInvitePreview();
 };
 
@@ -806,8 +1049,9 @@ window.updateInvitePreview = function() {
     if (messageInput && messageInput.value.length > 160) messageInput.value = messageInput.value.slice(0, 160);
     const name = nameInput?.value.trim() || 'Tên người ấy...';
     const message = messageInput?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!';
-    const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
-    const combo = combos.find(item => item.id === comboId) || combos[0];
+    const activeCombos = getVisibleCombos();
+    const comboId = Number(document.getElementById('inv-combo')?.value || activeCombos[0]?.id);
+    const combo = activeCombos.find(item => item.id === comboId) || activeCombos[0];
 
     if (document.getElementById('prev-name')) document.getElementById('prev-name').innerText = name;
     if (document.getElementById('prev-message')) document.getElementById('prev-message').innerText = `"${message}"`;
@@ -831,8 +1075,9 @@ window.randomizeMessage = function() {
 window.copyInviteText = async function() {
     const name = document.getElementById('inv-name')?.value.trim() || 'bạn';
     const message = document.getElementById('inv-message')?.value.trim() || '';
-    const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
-    const combo = combos.find(item => item.id === comboId) || combos[0];
+    const activeCombos = getVisibleCombos();
+    const comboId = Number(document.getElementById('inv-combo')?.value || activeCombos[0]?.id);
+    const combo = activeCombos.find(item => item.id === comboId) || activeCombos[0];
     const text = `${name} ơi, ${message}\nLộ trình: ${combo?.title || 'DatePlanner'}\nĐịa điểm: ${combo?.address || 'TP.HCM'}`;
     const button = document.getElementById('copy-inv-btn');
 
@@ -863,8 +1108,9 @@ function formatInviteDate(value) {
 }
 
 function getSelectedInviteCombo() {
-    const comboId = Number(document.getElementById('inv-combo')?.value || combos[0]?.id);
-    return combos.find(item => item.id === comboId) || combos[0];
+    const activeCombos = getVisibleCombos();
+    const comboId = Number(document.getElementById('inv-combo')?.value || activeCombos[0]?.id);
+    return activeCombos.find(item => item.id === comboId) || activeCombos[0];
 }
 
 function setInviteButtonLoading(button, isLoading, loadingText) {
@@ -1274,7 +1520,7 @@ window.getMoodRecommendation = function(moodType) {
     });
 
     const moodIds = MOOD_COMBO_IDS[moodType] || [];
-    const matchedCombos = combos.filter(combo => moodIds.includes(combo.id));
+    const matchedCombos = getVisibleCombos().filter(combo => moodIds.includes(combo.id));
     const container = document.getElementById('mood-result-container');
     const moodTheme = getMoodTheme(moodType);
     if (!container) return;
@@ -1343,7 +1589,7 @@ window.renderCombos = function() {
     if(!comboGrid) return;
     
     comboGrid.innerHTML = '';
-    const filtered = combos.filter(c => {
+    const filtered = getVisibleCombos().filter(c => {
         let matchCat = window.currentCategoryFilter === 'all' ? true : 
                        window.currentCategoryFilter === 'budget' ? (c.category === 'low' || c.category === 'mid') : 
                        window.currentCategoryFilter === 'premium' ? c.category === 'high' : 
@@ -1457,7 +1703,7 @@ window.resetFilters = function() {
 // 5. CỬA SỔ CHI TIẾT (MODAL)
 // ==========================================
 window.openComboDetail = function(id) {
-    const combo = combos.find(c => c.id === id);
+    const combo = getVisibleCombos().find(c => c.id === id);
     if(!combo) return;
     const comboAddress = (combo.address || '').trim();
     const comboDirectionsButton = comboAddress ? `
@@ -1840,7 +2086,7 @@ window.submitLead = async function() {
         return;
     }
 
-    const selectedCombo = combos.find(c => c.id === comboId);
+    const selectedCombo = getVisibleCombos().find(c => c.id === comboId);
     if (!selectedCombo) {
         alert("Không tìm thấy combo để tạo voucher. Bạn vui lòng mở lại chi tiết lộ trình và thử lại.");
         return;
@@ -2003,7 +2249,8 @@ window.verifyAdmin = function() {
         document.getElementById('admin-view').classList.remove('hidden');
         document.getElementById('client-view')?.classList.add('hidden');
         window.populatePartnerFilter(); 
-        window.renderAdminData();       
+        window.renderAdminData();
+        window.renderComboCms?.();
     } else {
         adminFailedAttempts += 1;
         if (adminFailedAttempts >= ADMIN_MAX_FAILED_ATTEMPTS) {
@@ -2080,7 +2327,209 @@ function renderFinanceBreakdown(summary) {
     setTextById('stat-platform-fee', formatVND(summary.totalPlatformFee));
     setTextById('stat-reimbursement', formatVND(summary.totalReimbursement));
     setTextById('stat-receivable', formatVND(summary.totalReceivableDifference));
+    ensureComboCmsSection();
+    window.renderCmsStats?.();
 }
+
+function ensureComboCmsSection() {
+    if (document.getElementById('combo-cms-section')) return;
+    const adminContainer = document.querySelector('#admin-view .max-w-7xl');
+    if (!adminContainer) return;
+    const financeBreakdown = document.getElementById('admin-finance-breakdown');
+    const anchor = financeBreakdown || adminContainer.querySelector('.grid');
+    if (!anchor) return;
+
+    anchor.insertAdjacentHTML('afterend', `
+        <section id="combo-cms-section" class="bg-[#0f0f13] border border-white/5 rounded-3xl p-6 md:p-8 shadow-xl mb-10">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-6">
+                <div>
+                    <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Mini Admin CMS</p>
+                    <h3 class="text-2xl font-black text-white">Quan ly Combo</h3>
+                    <p class="text-sm text-gray-400 mt-2 max-w-2xl">Quan tri combo noi bo MVP. Ban thuong mai can Firebase Auth, Security Rules va phan quyen admin/partner.</p>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="window.resetComboForm()" class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition"><i class="fa-solid fa-plus mr-2"></i>Them combo moi</button>
+                    <button onclick="window.seedDefaultCombosToFirestore()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>Dong bo combo mau</button>
+                    <button onclick="window.exportCombosToCSV()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition"><i class="fa-solid fa-file-csv mr-2"></i>Xuat CSV combo</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-black/30 border border-white/5 rounded-2xl p-4"><p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Dang hoat dong</p><h4 id="stat-combo-active" class="text-2xl font-black text-white">0</h4></div>
+                <div class="bg-black/30 border border-white/5 rounded-2xl p-4"><p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Da an</p><h4 id="stat-combo-hidden" class="text-2xl font-black text-orange-300">0</h4></div>
+                <div class="bg-black/30 border border-white/5 rounded-2xl p-4"><p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Xoa mem</p><h4 id="stat-combo-deleted" class="text-2xl font-black text-red-300">0</h4></div>
+                <div class="bg-black/30 border border-white/5 rounded-2xl p-4"><p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Doi tac active</p><h4 id="stat-active-partners" class="text-2xl font-black text-green-300">0</h4></div>
+            </div>
+            <form id="combo-cms-form" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6 bg-black/25 border border-white/5 rounded-2xl p-4" onsubmit="window.saveComboFromCms(event)">
+                <input type="hidden" id="cms-combo-id">
+                <input id="cms-title" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Ten combo">
+                <input id="cms-partner" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Doi tac">
+                <select id="cms-partner-package" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500">
+                    <option value="Basic">Basic</option><option value="Growth">Growth</option><option value="Premium">Premium</option>
+                </select>
+                <input id="cms-price" type="number" min="0" step="1000" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Gia tham khao">
+                <input id="cms-discount" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Uu dai: 15%, 30K">
+                <input id="cms-district" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Quan/khu vuc">
+                <select id="cms-category" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500">
+                    <option value="low">low</option><option value="mid">mid</option><option value="high">high</option>
+                </select>
+                <select id="cms-target" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500">
+                    <option value="couple">couple</option><option value="group">group</option><option value="both">both</option>
+                </select>
+                <input id="cms-bookings" type="number" min="0" step="1" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Bookings">
+                <input id="cms-icon" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500" placeholder="Icon FontAwesome">
+                <input id="cms-img" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500 md:col-span-2" placeholder="Anh URL">
+                <input id="cms-address" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500 md:col-span-2" placeholder="Dia chi">
+                <textarea id="cms-desc" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500 md:col-span-2" rows="3" placeholder="Mo ta ngan"></textarea>
+                <textarea id="cms-itinerary" class="bg-[#050505] border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-rose-500 md:col-span-2" rows="3" placeholder="Itinerary: 19:00 | Hoat dong | Dia diem"></textarea>
+                <div class="md:col-span-2 xl:col-span-4 flex flex-wrap items-center gap-3">
+                    <button type="submit" class="bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition"><i class="fa-solid fa-floppy-disk mr-2"></i>Luu combo</button>
+                    <button type="button" onclick="window.resetComboForm()" class="bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 px-5 py-2.5 rounded-xl text-sm font-bold transition">Lam moi form</button>
+                    <p id="combo-cms-message" class="text-sm text-green-300 font-bold hidden">Da luu combo</p>
+                </div>
+            </form>
+            <div class="overflow-auto custom-scrollbar border border-white/5 rounded-2xl">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-[#111115] sticky top-0 text-gray-400 border-b border-gray-800 z-10">
+                        <tr>
+                            <th class="px-4 py-4 text-[10px] uppercase tracking-widest">ID / Combo</th>
+                            <th class="px-4 py-4 text-[10px] uppercase tracking-widest">Doi tac / Goi</th>
+                            <th class="px-4 py-4 text-[10px] uppercase tracking-widest">Gia / Uu dai</th>
+                            <th class="px-4 py-4 text-[10px] uppercase tracking-widest">Status</th>
+                            <th class="px-4 py-4 text-[10px] uppercase tracking-widest text-rose-400">Thao tac</th>
+                        </tr>
+                    </thead>
+                    <tbody id="combo-cms-table-body" class="divide-y divide-gray-800/50"></tbody>
+                </table>
+            </div>
+        </section>
+    `);
+}
+
+window.renderCmsStats = function() {
+    const allCombos = getAllCombos();
+    const activeCombos = allCombos.filter(combo => combo.isActive !== false && combo.isDeleted !== true);
+    const hiddenCombos = allCombos.filter(combo => combo.isActive === false && combo.isDeleted !== true);
+    const deletedCombos = allCombos.filter(combo => combo.isDeleted === true);
+    const activePartners = new Set(activeCombos.map(combo => combo.partner).filter(Boolean));
+
+    setTextById('stat-combo-active', activeCombos.length);
+    setTextById('stat-combo-hidden', hiddenCombos.length);
+    setTextById('stat-combo-deleted', deletedCombos.length);
+    setTextById('stat-active-partners', activePartners.size);
+};
+
+window.renderComboCms = function() {
+    ensureComboCmsSection();
+    window.renderCmsStats();
+    const tbody = document.getElementById('combo-cms-table-body');
+    if (!tbody) return;
+
+    const sortedCombos = [...getAllCombos()].sort((a, b) => Number(a.id) - Number(b.id));
+    tbody.innerHTML = sortedCombos.map(combo => {
+        const comboIdForJs = JSON.stringify(combo.id);
+        const isDeleted = combo.isDeleted === true;
+        const isActive = combo.isActive !== false && !isDeleted;
+        const voucherValue = getVoucherValueFromCombo(combo);
+
+        return `
+            <tr class="hover:bg-white/5 transition">
+                <td class="px-4 py-4">
+                    <div class="text-gray-500 text-xs font-mono">#${escapeHTML(combo.id)}</div>
+                    <div class="text-white font-black">${escapeHTML(combo.title || 'Combo chua dat ten')}</div>
+                    <div class="text-gray-500 text-xs truncate max-w-[260px]">${escapeHTML(combo.address || '-')}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <div class="text-gray-200 font-bold">${escapeHTML(combo.partner || '-')}</div>
+                    <div class="text-gray-500 text-xs">${escapeHTML(combo.partnerPackage || 'Basic')}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <div class="text-white font-black">${formatVND(combo.price)}</div>
+                    <div class="text-orange-300 text-xs font-bold">${escapeHTML(combo.discount || '-')} / voucher ${formatVND(voucherValue)}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <span class="${isDeleted ? 'bg-red-500/20 text-red-300 border-red-500/30' : isActive ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-orange-500/20 text-orange-300 border-orange-500/30'} border px-2 py-1 rounded text-[10px] font-bold uppercase">${isDeleted ? 'Deleted' : isActive ? 'Active' : 'Hidden'}</span>
+                    <div class="text-gray-500 text-[10px] mt-1">${escapeHTML(combo.updatedAt || '-')}</div>
+                </td>
+                <td class="px-4 py-4">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick='window.editComboInCms(${comboIdForJs})' class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded font-bold">Sua</button>
+                        <button onclick='window.toggleComboActive(${comboIdForJs})' ${isDeleted ? 'disabled' : ''} class="text-xs bg-white/5 hover:bg-white/10 disabled:opacity-40 text-gray-100 border border-white/10 px-3 py-1.5 rounded font-bold">${isActive ? 'An' : 'Hien'}</button>
+                        <button onclick='window.softDeleteCombo(${comboIdForJs})' ${isDeleted ? 'disabled' : ''} class="text-xs bg-red-500/20 hover:bg-red-500/30 disabled:opacity-40 text-red-200 border border-red-500/30 px-3 py-1.5 rounded font-bold">Xoa mem</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.resetComboForm = function() {
+    const form = document.getElementById('combo-cms-form');
+    form?.reset();
+    setTextById('cms-combo-id', '');
+    const idInput = document.getElementById('cms-combo-id');
+    if (idInput) idInput.value = '';
+    setTextById('combo-cms-message', '');
+    document.getElementById('combo-cms-message')?.classList.add('hidden');
+};
+
+window.editComboInCms = function(comboId) {
+    const combo = getAllCombos().find(item => Number(item.id) === Number(comboId));
+    if (!combo) return;
+
+    const fields = {
+        'cms-combo-id': combo.id,
+        'cms-title': combo.title,
+        'cms-desc': combo.desc,
+        'cms-address': combo.address,
+        'cms-district': combo.district,
+        'cms-partner': combo.partner,
+        'cms-partner-package': combo.partnerPackage,
+        'cms-discount': combo.discount,
+        'cms-price': combo.price,
+        'cms-category': combo.category,
+        'cms-target': combo.target,
+        'cms-bookings': combo.bookings,
+        'cms-img': combo.img,
+        'cms-icon': combo.icon,
+        'cms-itinerary': stringifyComboItinerary(combo)
+    };
+
+    Object.entries(fields).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) element.value = value ?? '';
+    });
+    document.getElementById('combo-cms-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+window.saveComboFromCms = async function(event) {
+    event?.preventDefault();
+    try {
+        const comboData = getComboFormData();
+        const validationError = validateComboData(comboData);
+        if (validationError) {
+            alert(validationError);
+            return;
+        }
+
+        if (comboData.firebaseId || getAllCombos().some(combo => Number(combo.id) === Number(comboData.id))) {
+            await window.updateCombo(comboData.id, comboData);
+        } else {
+            await window.createCombo(comboData);
+        }
+
+        const message = document.getElementById('combo-cms-message');
+        if (message) {
+            message.textContent = 'Da luu combo';
+            message.classList.remove('hidden');
+        }
+        alert("Đã lưu combo");
+        window.resetComboForm();
+        window.renderComboCms();
+    } catch (error) {
+        console.error('Loi luu combo:', error);
+        alert(error?.message || 'Khong the luu combo.');
+    }
+};
 
 window.renderAdminData = function() {
     const partnerFilter = document.getElementById('admin-partner-filter')?.value || 'all';
@@ -2174,6 +2623,7 @@ window.renderAdminData = function() {
             const isIssued = status === 'issued';
             const isUsedPendingBill = status === 'used_pending_bill';
             const isReconciled = status === 'reconciled';
+            const isSettled = status === 'settled';
             const partnerPackage = getLeadPartnerPackage(lead);
             const financials = getLeadFinancials(lead);
             const safeDomId = `lead-${String(lead.firebaseId || index).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -2202,6 +2652,7 @@ window.renderAdminData = function() {
                 actionBtn = `
                     <button onclick='window.confirmVoucher(${docIdForJs})' class="w-full text-xs bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded shadow-lg transition font-bold"><i class="fa-solid fa-qrcode mr-1"></i> Xác nhận đã dùng</button>
                     <button onclick='window.cancelVoucher(${docIdForJs})' class="mt-2 w-full text-xs bg-white/5 hover:bg-red-500/20 text-red-300 border border-red-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-ban mr-1"></i> Cancelled</button>
+                    <button onclick='window.markVoucherExpired(${docIdForJs})' class="mt-2 w-full text-xs bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 border border-gray-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-hourglass-end mr-1"></i> Expired</button>
                 `;
             } else if (isUsedPendingBill) {
                 actionBtn = `
@@ -2217,6 +2668,18 @@ window.renderAdminData = function() {
                 actionBtn = `
                     <button onclick='window.settleVoucher(${docIdForJs})' class="w-full text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded shadow-lg transition font-bold"><i class="fa-solid fa-circle-check mr-1"></i> Xác nhận settled</button>
                     <button onclick='window.disputeVoucher(${docIdForJs})' class="mt-2 w-full text-xs bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/30 px-3 py-1.5 rounded transition font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Disputed</button>
+                `;
+            }
+
+            if (isSettled) {
+                actionBtn = `
+                    <div class="space-y-2 min-w-[220px]">
+                        <input id="${safeDomId}-invoice" type="text" maxlength="40" value="${escapeHTML(lead.invoiceCode || '')}" placeholder="Ma hoa don" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <input id="${safeDomId}-bill" type="number" min="0" step="1000" value="${financials.billAmount || ''}" placeholder="Tong bill" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <input id="${safeDomId}-voucher" type="number" min="0" step="1000" value="${financials.voucherValue}" placeholder="Gia tri voucher" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">
+                        <select id="${safeDomId}-package" class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500">${packageOptions}</select>
+                        <button onclick='window.reconcileVoucherFromRow(${docIdForJs}, "${safeDomId}")' class="w-full text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded transition font-bold">Sua bill settled</button>
+                    </div>
                 `;
             }
 
@@ -2266,7 +2729,7 @@ window.renderAdminData = function() {
 
 window.confirmVoucherUsed = async function(docId) {
     const lead = window.cloudLeads.find(item => item.firebaseId === docId);
-    if (lead && getEffectiveLeadStatus(lead) !== 'issued') {
+    if (lead && !['issued', 'used_pending_bill', 'reconciled'].includes(getEffectiveLeadStatus(lead))) {
         alert("Chỉ voucher status issued mới có thể chuyển sang used_pending_bill.");
         return;
     }
@@ -2309,6 +2772,28 @@ window.cancelVoucher = async function(docId) {
     }
 };
 
+window.markVoucherExpired = async function(docId) {
+    const lead = window.cloudLeads.find(item => item.firebaseId === docId);
+    if (lead && ['settled', 'cancelled', 'disputed'].includes(getEffectiveLeadStatus(lead))) {
+        alert("Voucher settled/cancelled/disputed khong chuyen sang expired.");
+        return;
+    }
+
+    if (!confirm("Danh dau voucher nay la expired? Voucher expired khong duoc tinh doanh thu CPS.")) return;
+
+    try {
+        const leadRef = doc(db, "leads", docId);
+        await updateDoc(leadRef, {
+            status: 'expired',
+            expiredAt: getNowText(),
+            statusUpdatedAt: Date.now()
+        });
+    } catch(e) {
+        console.error("Loi cap nhat expired: ", e);
+        alert("Loi ket noi Dam may!");
+    }
+};
+
 window.confirmVoucher = window.confirmVoucherUsed;
 
 window.reconcileBill = async function(docId, domId) {
@@ -2327,12 +2812,18 @@ window.reconcileBill = async function(docId, domId) {
     }
 
     const lead = window.cloudLeads.find(item => item.firebaseId === docId);
-    if (lead && getEffectiveLeadStatus(lead) !== 'used_pending_bill') {
+    const currentStatus = lead ? getEffectiveLeadStatus(lead) : 'used_pending_bill';
+    const isEditingSettled = currentStatus === 'settled';
+    if (lead && !['used_pending_bill', 'settled'].includes(currentStatus)) {
         alert("Chỉ voucher used_pending_bill mới được nhập bill đối soát.");
         return;
     }
 
     const packageConfig = getPartnerPackageConfig(partnerPackage);
+    if (isEditingSettled && !confirm("Giao dịch đã settled. Việc sửa sẽ ảnh hưởng báo cáo tài chính. Bạn chắc chắn muốn tiếp tục?")) {
+        return;
+    }
+
     const settlement = calculateCpsSettlement({
         billAmount,
         voucherValue,
@@ -2354,9 +2845,11 @@ window.reconcileBill = async function(docId, domId) {
             cpsCommission: settlement.cpsCommission,
             netReimbursement: settlement.netReimbursement,
             receivableDifference: settlement.receivableDifference,
-            reconciledAt: formatLeadDateTime(Date.now()),
-            status: 'reconciled',
-            statusUpdatedAt: Date.now()
+            reconciledAt: isEditingSettled ? (lead.reconciledAt || getNowText()) : getNowText(),
+            status: isEditingSettled ? 'settled' : 'reconciled',
+            statusUpdatedAt: Date.now(),
+            updatedAt: getNowText(),
+            editedAfterSettlement: isEditingSettled ? true : false
         });
     } catch(e) {
         console.error("Lỗi nhập bill đối soát: ", e);
@@ -2413,7 +2906,8 @@ window.disputeVoucher = async function(docId) {
 };
 
 window.clearDemoDataInternalOnly = async function() {
-    const confirmText = "XOA DU LIEU DEMO";
+    alert("MVP khong cho xoa cung toan bo du lieu Firebase tu client. Hay dung cancelled/expired/disputed hoac xoa mem combo.");
+    return;
     if (!confirm("Chức năng nội bộ: xóa toàn bộ dữ liệu demo trên Cloud. Tiếp tục?")) return;
 
     const typedText = prompt(`Nhập chính xác "${confirmText}" để xác nhận xóa dữ liệu demo:`);
@@ -2424,7 +2918,6 @@ window.clearDemoDataInternalOnly = async function() {
 
     try {
         const querySnapshot = await getDocs(leadsCollection);
-        const deletions = querySnapshot.docs.map((document) => deleteDoc(doc(db, "leads", document.id)));
         await Promise.all(deletions);
         alert("Đã xóa dữ liệu demo trên Cloud Server.");
     } catch(e) {
@@ -2486,12 +2979,51 @@ window.exportToCSV = function() {
     URL.revokeObjectURL(url);
 };
 
+window.exportCombosToCSV = function() {
+    const allCombos = getAllCombos();
+    if (allCombos.length === 0) {
+        alert('Chua co combo de xuat CSV.');
+        return;
+    }
+
+    const csvEscape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    let csvContent = "ID,Ten combo,Doi tac,Goi doi tac,Gia,Uu dai,Voucher value,Category,Target,District,Active,Deleted,UpdatedAt\n";
+    allCombos.forEach(combo => {
+        csvContent += [
+            combo.id,
+            combo.title,
+            combo.partner,
+            combo.partnerPackage,
+            Math.round(Number(combo.price) || 0),
+            combo.discount,
+            getVoucherValueFromCombo(combo),
+            combo.category,
+            combo.target,
+            combo.district,
+            combo.isActive !== false,
+            combo.isDeleted === true,
+            combo.updatedAt || ''
+        ].map(csvEscape).join(',') + '\n';
+    });
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `DatePlanner_Combos_${Date.now()}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
 window.clearData = window.clearDemoDataInternalOnly;
 
 // ==========================================
 // KHỞI CHẠY CÁC HÀM UI CÒN LẠI KHI TẢI TRANG
 // ==========================================
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     applyLocalComboImages();
 
     if (window.emailjs) {
@@ -2499,6 +3031,8 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
         console.warn("EmailJS SDK chua san sang. Voucher van duoc tao, nhung email se khong gui duoc.");
     }
+
+    await window.loadCombos();
 
     if(document.getElementById('combo-grid')) {
         window.renderCombos();
@@ -2513,7 +3047,9 @@ window.addEventListener('DOMContentLoaded', () => {
         window.triggerFOMO = function() {
             const toast = document.getElementById('fomo-toast');
             const randomName = ["Linh", "Hoàng", "Tuấn", "Mai", "Bảo"][Math.floor(Math.random() * 5)];
-            const randomCombo = combos[Math.floor(Math.random() * combos.length)];
+            const activeCombos = getVisibleCombos();
+            if (activeCombos.length === 0) return;
+            const randomCombo = activeCombos[Math.floor(Math.random() * activeCombos.length)];
             toast.innerHTML = `
                 <div class="glass-panel border-l-4 border-l-rose-500 p-4 rounded-2xl flex items-center gap-4 w-72 md:w-80">
                     <div class="w-12 h-12 rounded-full btn-gradient flex items-center justify-center shrink-0 shadow-inner">

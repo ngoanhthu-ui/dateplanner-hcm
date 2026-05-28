@@ -366,7 +366,7 @@ function getLeadBillAmount(lead = {}) {
 
 function getLeadCpsRate(lead = {}) {
     const packageConfig = getPartnerPackageConfig(getLeadPartnerPackage(lead));
-    return Math.max(0, toSafeNumber(lead.cpsRate, packageConfig.cpsRate));
+    return packageConfig.cpsRate;
 }
 
 function getLeadFinancials(lead = {}) {

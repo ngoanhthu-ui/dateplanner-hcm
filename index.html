@@ -888,22 +888,22 @@
                     <p class="text-zinc-300 text-base md:text-xl font-medium">Ch&#7885;n vibe, DatePlanner ch&#7889;t k&#232;o. &#205;t ngh&#297;, nhi&#7873;u vui.</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-8">
-                    <button type="button" data-mood-option="chill" onclick="selectMood('chill')" class="interactive-btn mood-chip mood-card mood-chill group premium-panel p-5 rounded-2xl text-left">
+                    <button type="button" data-mood-option="chill" data-mood="chill" onclick="selectMood('chill')" class="mood-option interactive-btn mood-chip mood-card mood-chill group premium-panel p-5 rounded-2xl text-left">
                         <span class="selected-mark absolute top-4 right-4 text-xs font-black text-sky-100 bg-sky-400/20 border border-sky-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
                         <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-mug-hot"></i></div>
                         <h3 class="font-black text-white text-xl">Chill mode</h3><p class="mood-microcopy text-sm mt-1 font-semibold">T&#7855;t n&#227;o, b&#7853;t healing.</p>
                     </button>
-                    <button type="button" data-mood-option="active" onclick="selectMood('active')" class="interactive-btn mood-chip mood-card mood-active group premium-panel p-5 rounded-2xl text-left">
+                    <button type="button" data-mood-option="active" data-mood="active" onclick="selectMood('active')" class="mood-option interactive-btn mood-chip mood-card mood-active group premium-panel p-5 rounded-2xl text-left">
                         <span class="selected-mark absolute top-4 right-4 text-xs font-black text-orange-100 bg-orange-400/20 border border-orange-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
                         <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-bolt"></i></div>
                         <h3 class="font-black text-white text-xl">Qu&#7849;y nh&#7865;</h3><p class="mood-microcopy text-sm mt-1 font-semibold">N&#259;ng pin, l&#234;n mood.</p>
                     </button>
-                    <button type="button" data-mood-option="romantic" onclick="selectMood('romantic')" class="interactive-btn mood-chip mood-card mood-romantic group premium-panel p-5 rounded-2xl text-left">
+                    <button type="button" data-mood-option="romantic" data-mood="romantic" onclick="selectMood('romantic')" class="mood-option interactive-btn mood-chip mood-card mood-romantic group premium-panel p-5 rounded-2xl text-left">
                         <span class="selected-mark absolute top-4 right-4 text-xs font-black text-rose-100 bg-rose-400/20 border border-rose-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
                         <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-heart"></i></div>
                         <h3 class="font-black text-white text-xl">Date soft</h3><p class="mood-microcopy text-sm mt-1 font-semibold">Nh&#7865; nh&#224;ng m&#224; d&#237;nh.</p>
                     </button>
-                    <button type="button" data-mood-option="fun" onclick="selectMood('fun')" class="interactive-btn mood-chip mood-card mood-fun group premium-panel p-5 rounded-2xl text-left">
+                    <button type="button" data-mood-option="fun" data-mood="fun" onclick="selectMood('fun')" class="mood-option interactive-btn mood-chip mood-card mood-fun group premium-panel p-5 rounded-2xl text-left">
                         <span class="selected-mark absolute top-4 right-4 text-xs font-black text-violet-100 bg-violet-400/20 border border-violet-200/30 rounded-full px-2 py-1"><i class="fa-solid fa-check mr-1"></i>Kh&#7899;p vibe</span>
                         <div class="mood-icon w-12 h-12 rounded-2xl flex items-center justify-center mb-5 text-lg"><i class="fa-solid fa-user-group"></i></div>
                         <h3 class="font-black text-white text-xl">H&#7897;i b&#7841;n</h3><p class="mood-microcopy text-sm mt-1 font-semibold">R&#7911; l&#224; &#273;i, kh&#244;ng drama.</p>
@@ -913,28 +913,28 @@
                     <div class="premium-panel rounded-2xl p-5">
                         <p class="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4">Ng&#226;n s&#225;ch</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <button type="button" data-mood-budget="low" onclick="selectMoodBudget('low')" class="mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">B&#236;nh d&#226;n<br><span class="text-xs font-semibold text-zinc-400">D&#432;&#7899;i 200K</span></button>
-                            <button type="button" data-mood-budget="mid" onclick="selectMoodBudget('mid')" class="mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">T&#7847;m trung<br><span class="text-xs font-semibold text-zinc-400">200K - 500K</span></button>
-                            <button type="button" data-mood-budget="high" onclick="selectMoodBudget('high')" class="mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">Cao c&#7845;p<br><span class="text-xs font-semibold text-zinc-400">Tr&#234;n 500K</span></button>
-                            <button type="button" data-mood-budget="all" onclick="selectMoodBudget('all')" class="mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm active is-selected">T&#7845;t c&#7843; ng&#226;n s&#225;ch<br><span class="text-xs font-semibold text-zinc-400">Kh&#244;ng gi&#7899;i h&#7841;n</span></button>
+                            <button type="button" data-mood-budget="low" data-budget="low" onclick="selectMoodBudget('low')" class="mood-budget-option mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">B&#236;nh d&#226;n<br><span class="text-xs font-semibold text-zinc-400">D&#432;&#7899;i 200K</span></button>
+                            <button type="button" data-mood-budget="mid" data-budget="mid" onclick="selectMoodBudget('mid')" class="mood-budget-option mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">T&#7847;m trung<br><span class="text-xs font-semibold text-zinc-400">200K - 500K</span></button>
+                            <button type="button" data-mood-budget="high" data-budget="high" onclick="selectMoodBudget('high')" class="mood-budget-option mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm">Cao c&#7845;p<br><span class="text-xs font-semibold text-zinc-400">Tr&#234;n 500K</span></button>
+                            <button type="button" data-mood-budget="all" data-budget="all" onclick="selectMoodBudget('all')" class="mood-budget-option mood-option-btn interactive-btn secondary-action text-left px-4 py-3 rounded-2xl font-black text-sm active is-selected selected ring-2 ring-pink-400 bg-pink-500/20">T&#7845;t c&#7843; ng&#226;n s&#225;ch<br><span class="text-xs font-semibold text-zinc-400">Kh&#244;ng gi&#7899;i h&#7841;n</span></button>
                         </div>
                     </div>
                     <div class="premium-panel rounded-2xl p-5">
                         <p class="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4">Khu v&#7921;c</p>
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <button type="button" data-mood-district="all" onclick="selectMoodDistrict('all')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm active is-selected">T&#7845;t c&#7843;</button>
-                            <button type="button" data-mood-district="quan1" onclick="selectMoodDistrict('quan1')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 1</button>
-                            <button type="button" data-mood-district="quan7" onclick="selectMoodDistrict('quan7')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 7</button>
-                            <button type="button" data-mood-district="quan10" onclick="selectMoodDistrict('quan10')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 10</button>
-                            <button type="button" data-mood-district="binhthanh" onclick="selectMoodDistrict('binhthanh')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">B&#236;nh Th&#7841;nh</button>
-                            <button type="button" data-mood-district="phunhuan" onclick="selectMoodDistrict('phunhuan')" class="mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Ph&#250; Nhu&#7853;n</button>
+                            <button type="button" data-mood-district="all" data-district="all" onclick="selectMoodDistrict('all')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm active is-selected selected ring-2 ring-pink-400 bg-pink-500/20">T&#7845;t c&#7843;</button>
+                            <button type="button" data-mood-district="quan1" data-district="quan1" onclick="selectMoodDistrict('quan1')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 1</button>
+                            <button type="button" data-mood-district="quan7" data-district="quan7" onclick="selectMoodDistrict('quan7')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 7</button>
+                            <button type="button" data-mood-district="quan10" data-district="quan10" onclick="selectMoodDistrict('quan10')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Qu&#7853;n 10</button>
+                            <button type="button" data-mood-district="binhthanh" data-district="binhthanh" onclick="selectMoodDistrict('binhthanh')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">B&#236;nh Th&#7841;nh</button>
+                            <button type="button" data-mood-district="phunhuan" data-district="phunhuan" onclick="selectMoodDistrict('phunhuan')" class="mood-district-option mood-option-btn interactive-btn secondary-action px-4 py-3 rounded-2xl font-black text-sm">Ph&#250; Nhu&#7853;n</button>
                         </div>
                     </div>
                 </div>
                 <div class="flex justify-center">
-                    <button type="button" onclick="getMoodRecommendation()" class="interactive-btn primary-action font-black py-4 px-8 rounded-full text-base md:text-lg"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>G&#7907;i &#253; cho t&#244;i</button>
+                    <button type="button" id="mood-submit-btn" onclick="getMoodRecommendation()" class="interactive-btn primary-action font-black py-4 px-8 rounded-full text-base md:text-lg"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>G&#7907;i &#253; cho t&#244;i</button>
                 </div>
-                <div id="mood-result-container" class="hidden max-w-6xl mx-auto transform transition-all duration-500"></div>
+                <div id="mood-result" class="hidden max-w-6xl mx-auto transform transition-all duration-500"></div>
             </div>
         </section>
 

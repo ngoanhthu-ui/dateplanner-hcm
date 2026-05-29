@@ -1617,13 +1617,13 @@ window.createInviteFromMoodCombo = function(comboId) {
     }
 };
 
-window.getMoodRecommendation = function(moodType) {
+window.getLegacyMoodRecommendation = function(moodType) {
     document.querySelectorAll('.mood-card').forEach(card => card.classList.remove('is-selected', 'active'));
     document.querySelectorAll(`button[onclick*="'${moodType}'"]`).forEach(card => {
         if (card.classList.contains('mood-card')) card.classList.add('is-selected', 'active');
     });
 
-    const moodIds = MOOD_COMBO_IDS[moodType] || [];
+    const moodIds = [];
     const matchedCombos = getVisibleCombos().filter(combo => moodIds.includes(combo.id));
     const container = document.getElementById('mood-result-container');
     const moodTheme = getMoodTheme(moodType);
@@ -1663,7 +1663,7 @@ window.getMoodRecommendation = function(moodType) {
                     </div>
                     <div class="p-6 md:p-9 lg:p-10 flex flex-col justify-center">
                         <span class="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-widest mb-5 ${moodTheme.badge} px-4 py-2 rounded-full">
-                            <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>AI Date Planner &#273;&#7873; xu&#7845;t
+                            <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>DatePlanner &#273;&#7873; xu&#7845;t theo Mood Quiz
                         </span>
                         <h3 class="text-4xl md:text-5xl font-black text-white mb-4 leading-[0.98] tracking-tight">${randomCombo.title}</h3>
                         <p class="text-zinc-300 mb-6 font-semibold leading-relaxed">${randomCombo.desc || getMoodReason(moodType)}</p>
@@ -1685,6 +1685,236 @@ window.getMoodRecommendation = function(moodType) {
 // ==========================================
 // 4. BỘ LỌC VÀ RENDER TẤT CẢ COMBO
 // ==========================================
+function getMoodResultContainer() {
+    return document.getElementById('mood-result') || document.getElementById('mood-result-container');
+}
+
+function setMoodActiveState(selector, dataName, value) {
+    document.querySelectorAll(selector).forEach(btn => {
+        const isActive = btn.dataset[dataName] === value;
+        btn.classList.toggle('selected', isActive);
+        btn.classList.toggle('is-selected', isActive);
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('ring-2', isActive);
+        btn.classList.toggle('ring-pink-400', isActive);
+        btn.classList.toggle('bg-pink-500/20', isActive);
+    });
+}
+
+function selectMood(mood) {
+    if (!MOOD_RULES[mood]) return;
+    moodQuizState.mood = mood;
+    setMoodActiveState('.mood-option', 'mood', mood);
+}
+
+function selectMoodBudget(budget = 'all') {
+    moodQuizState.budget = ['low', 'mid', 'high', 'all'].includes(budget) ? budget : 'all';
+    setMoodActiveState('.mood-budget-option', 'budget', moodQuizState.budget);
+}
+
+function selectMoodDistrict(district = 'all') {
+    moodQuizState.district = district || 'all';
+    setMoodActiveState('.mood-district-option', 'district', moodQuizState.district);
+}
+
+function scoreComboForMood(combo, mood) {
+    const rule = MOOD_RULES[mood];
+    if (!rule || !combo) return 0;
+
+    let score = 0;
+    if (rule.targets.includes(combo.target)) score += 3;
+    if (rule.categories.includes(combo.category)) score += 2;
+
+    const searchableText = [
+        combo.title,
+        combo.desc,
+        combo.address,
+        combo.partner,
+        combo.district
+    ].join(' ').toLowerCase();
+
+    rule.keywords.forEach(keyword => {
+        if (searchableText.includes(String(keyword).toLowerCase())) score += 1;
+    });
+
+    if ((Number(combo.bookings) || 0) >= 100) score += 1;
+    return score;
+}
+
+function getMoodMetaText(meta = {}) {
+    return {
+        mood: MOOD_LABELS[meta.mood] || meta.mood || '',
+        budget: MOOD_BUDGET_LABELS[meta.budget] || meta.budget || '',
+        district: MOOD_DISTRICT_LABELS[meta.district] || meta.district || ''
+    };
+}
+
+window.openMoodVoucherForm = function(comboId) {
+    const combo = getVisibleCombos().find(item => Number(item.id) === Number(comboId));
+    if (!combo) return;
+
+    const comboIdInput = document.getElementById('lead-combo-id');
+    const comboTitleInput = document.getElementById('lead-combo-title');
+    const comboDiscountInput = document.getElementById('lead-combo-discount');
+    if (comboIdInput) comboIdInput.value = combo.id;
+    if (comboTitleInput) comboTitleInput.value = combo.title || '';
+    if (comboDiscountInput) comboDiscountInput.value = combo.discount || '';
+
+    if (typeof window.openLeadForm === 'function') {
+        window.openLeadForm();
+    }
+};
+
+function renderMoodQuizResult(combo, meta) {
+    const container = getMoodResultContainer();
+    if (!container || !combo) return;
+
+    const moodTheme = getMoodTheme(meta?.mood);
+    const labels = getMoodMetaText(meta);
+    const categoryLabel = MOOD_BUDGET_LABELS[combo.category] || combo.category || 'khong ro';
+    const districtLabel = MOOD_DISTRICT_LABELS[combo.district] || combo.district || 'Khong ro';
+
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="mood-result-hero ${moodTheme.resultBorder} rounded-[2rem] mt-8 overflow-hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr] items-stretch text-left">
+                <div class="mood-result-media min-h-[330px] lg:min-h-[520px] overflow-hidden relative">
+                    <img src="${escapeHTML(getComboImage(combo))}" class="w-full h-full object-cover" alt="${escapeHTML(combo.title || 'DatePlanner combo')}" ${getImageAttrs()}>
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/22 to-transparent"></div>
+                    <div class="absolute top-5 left-5 primary-action font-black px-4 py-2 rounded-full text-xs z-10">Voucher ${escapeHTML(combo.discount || 'demo')}</div>
+                </div>
+                <div class="p-6 md:p-9 lg:p-10 flex flex-col justify-center">
+                    <span class="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-widest mb-5 ${moodTheme.badge} px-4 py-2 rounded-full">
+                        <i class="fa-solid fa-wand-magic-sparkles ${moodTheme.icon}"></i>DatePlanner đề xuất theo Mood Quiz
+                    </span>
+                    <h3 class="text-4xl md:text-5xl font-black text-white mb-4 leading-[0.98] tracking-tight">${escapeHTML(combo.title || 'Combo DatePlanner')}</h3>
+                    <p class="text-zinc-300 mb-6 font-semibold leading-relaxed">${escapeHTML(combo.desc || getMoodReason(meta?.mood))}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-sm text-zinc-200">
+                        <span class="mood-result-pill px-4 py-3 rounded-2xl"><i class="fa-solid fa-location-dot mr-2 ${moodTheme.icon}"></i>${escapeHTML(combo.address || districtLabel)}</span>
+                        <span class="mood-result-pill px-4 py-3 rounded-2xl font-black text-white"><i class="fa-solid fa-tag mr-2 ${moodTheme.icon}"></i>${formatComboPrice(combo)}</span>
+                        <span class="mood-result-pill px-4 py-3 rounded-2xl"><i class="fa-solid fa-store mr-2 ${moodTheme.icon}"></i>${escapeHTML(combo.partner || 'Doi tac demo')}</span>
+                        <span class="mood-result-pill px-4 py-3 rounded-2xl"><i class="fa-solid fa-ticket mr-2 ${moodTheme.icon}"></i>${escapeHTML(combo.discount || 'Voucher demo')}</span>
+                    </div>
+                    <p class="text-zinc-400 text-sm mb-7 font-semibold">
+                        Phù hợp vì bạn chọn mood <b class="text-white">${escapeHTML(labels.mood)}</b>, ngân sách <b class="text-white">${escapeHTML(labels.budget)}</b> và khu vực <b class="text-white">${escapeHTML(labels.district)}</b>. Kết quả thuộc nhóm <b class="text-white">${escapeHTML(categoryLabel)}</b> tại <b class="text-white">${escapeHTML(districtLabel)}</b>.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button type="button" onclick="window.openComboDetail(${Number(combo.id)})" class="interactive-btn ${moodTheme.cta} font-black py-4 px-6 rounded-2xl flex-1 text-center">Xem chi tiết</button>
+                        <button type="button" onclick="window.openMoodVoucherForm(${Number(combo.id)})" class="interactive-btn primary-action font-black py-4 px-6 rounded-2xl flex-1 text-center">Nhận voucher</button>
+                        <button type="button" onclick="window.createInviteFromMoodCombo(${Number(combo.id)})" class="interactive-btn secondary-action font-black py-4 px-6 rounded-2xl flex-1 text-center">Tạo thiệp mời</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderMoodQuizEmptyState(meta) {
+    const container = getMoodResultContainer();
+    if (!container) return;
+    const labels = getMoodMetaText(meta);
+
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="rounded-[1.75rem] mt-8 p-6 md:p-8 text-center text-white bg-white/5 border border-white/10">
+            <h3 class="text-2xl font-black mb-2">Chưa tìm thấy combo phù hợp</h3>
+            <p class="text-zinc-300 font-semibold leading-relaxed">
+                Hiện chưa có combo phù hợp với mood ${escapeHTML(labels.mood)}, ngân sách ${escapeHTML(labels.budget)} và khu vực ${escapeHTML(labels.district)}. Bạn có thể đổi ngân sách hoặc chọn tất cả khu vực.
+            </p>
+        </div>
+    `;
+}
+
+function getMoodRecommendation() {
+    const { mood, budget, district } = moodQuizState;
+    const container = getMoodResultContainer();
+    if (!container) {
+        console.error('Không tìm thấy #mood-result');
+        return;
+    }
+
+    clearTimeout(window.moodResultTimer);
+    container.classList.remove('hidden');
+
+    if (!mood) {
+        container.innerHTML = `
+            <div class="rounded-[1.75rem] mt-8 p-6 md:p-8 text-yellow-100 bg-yellow-400/10 border border-yellow-400/30">
+                Bạn hãy chọn mood trước nhé.
+            </div>
+        `;
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="mood-loading rounded-[1.75rem] mt-8 p-6 md:p-8 flex items-center justify-center gap-4 text-white font-black">
+            <span>DatePlanner đang tìm combo phù hợp...</span>
+            <span class="inline-flex items-center gap-1.5" aria-hidden="true"><span class="mood-dot"></span><span class="mood-dot"></span><span class="mood-dot"></span></span>
+        </div>
+    `;
+    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    window.moodResultTimer = setTimeout(() => {
+        const sourceCombos = getVisibleCombos();
+        if (!Array.isArray(sourceCombos) || sourceCombos.length === 0) {
+            container.innerHTML = `
+                <div class="rounded-[1.75rem] mt-8 p-6 md:p-8 text-red-100 bg-red-400/10 border border-red-400/30">
+                    Dữ liệu combo đang tải, vui lòng thử lại.
+                </div>
+            `;
+            return;
+        }
+
+        const candidates = sourceCombos.filter(combo => {
+            const matchBudget = budget === 'all' || combo.category === budget;
+            const matchDistrict = district === 'all' || combo.district === district;
+            return matchBudget && matchDistrict;
+        });
+
+        const scored = candidates
+            .map(combo => ({ combo, score: scoreComboForMood(combo, mood) }))
+            .filter(item => item.score > 0)
+            .sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return (Number(b.combo.bookings) || 0) - (Number(a.combo.bookings) || 0);
+            });
+
+        if (!scored.length) {
+            renderMoodQuizEmptyState({ mood, budget, district });
+            return;
+        }
+
+        const topResults = scored.slice(0, 3);
+        const picked = topResults[Math.floor(Math.random() * topResults.length)].combo;
+        renderMoodQuizResult(picked, { mood, budget, district });
+    }, 650);
+}
+
+function initMoodQuiz() {
+    document.querySelectorAll('.mood-option').forEach(btn => {
+        btn.addEventListener('click', () => selectMood(btn.dataset.mood));
+    });
+    document.querySelectorAll('.mood-budget-option').forEach(btn => {
+        btn.addEventListener('click', () => selectMoodBudget(btn.dataset.budget || 'all'));
+    });
+    document.querySelectorAll('.mood-district-option').forEach(btn => {
+        btn.addEventListener('click', () => selectMoodDistrict(btn.dataset.district || 'all'));
+    });
+    document.getElementById('mood-submit-btn')?.addEventListener('click', getMoodRecommendation);
+
+    selectMoodBudget(moodQuizState.budget);
+    selectMoodDistrict(moodQuizState.district);
+}
+
+window.selectMood = selectMood;
+window.selectMoodBudget = selectMoodBudget;
+window.selectMoodDistrict = selectMoodDistrict;
+window.getMoodRecommendation = getMoodRecommendation;
+window.renderMoodQuizResult = renderMoodQuizResult;
+window.renderMoodQuizEmptyState = renderMoodQuizEmptyState;
+window.scoreComboForMood = scoreComboForMood;
+window.moodQuizState = moodQuizState;
+
 window.currentCategoryFilter = 'all';
 window.currentDistrictFilter = 'all';
 
@@ -3137,6 +3367,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     await window.loadCombos();
+
+    initMoodQuiz();
 
     if(document.getElementById('combo-grid')) {
         window.renderCombos();

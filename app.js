@@ -118,11 +118,52 @@ const LEAD_STATUS_META = {
     }
 };
 const VALID_LEAD_STATUSES = new Set(Object.values(LEAD_STATUSES));
-const MOOD_COMBO_IDS = {
-    chill: [1, 5, 8, 9, 15, 18],
-    active: [6, 11, 14],
-    romantic: [1, 4, 7, 12, 16],
-    fun: [2, 3, 10, 13, 17]
+let moodQuizState = {
+    mood: null,
+    budget: "all",
+    district: "all"
+};
+const MOOD_RULES = {
+    chill: {
+        targets: ["couple", "both", "group"],
+        categories: ["low", "mid"],
+        keywords: ["chill", "cafe", "coffee", "picnic", "bảo tàng", "waterbus", "acoustic"]
+    },
+    romantic: {
+        targets: ["couple", "both"],
+        categories: ["mid", "high", "low"],
+        keywords: ["date", "romantic", "landmark", "acoustic", "sông", "gốm", "nightlife"]
+    },
+    active: {
+        targets: ["group", "both", "couple"],
+        categories: ["mid", "high"],
+        keywords: ["sup", "bắn cung", "patin", "workshop", "boardgame"]
+    },
+    fun: {
+        targets: ["group", "both"],
+        categories: ["low", "mid"],
+        keywords: ["boardgame", "hồ thị kỷ", "patin", "workshop", "phim", "ăn vặt"]
+    }
+};
+const MOOD_LABELS = {
+    chill: "chill",
+    romantic: "romantic",
+    active: "active",
+    fun: "fun"
+};
+const MOOD_BUDGET_LABELS = {
+    low: "bình dân",
+    mid: "tầm trung",
+    high: "cao cấp",
+    all: "tất cả ngân sách"
+};
+const MOOD_DISTRICT_LABELS = {
+    all: "tất cả khu vực",
+    quan1: "Quận 1",
+    quan7: "Quận 7",
+    quan10: "Quận 10",
+    binhthanh: "Bình Thạnh",
+    phunhuan: "Phú Nhuận"
 };
 const LOCAL_FALLBACK_IMAGE = (title = 'DatePlanner') => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520"><rect width="100%" height="100%" fill="#171717"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800" fill="#f43f5e">${title}</text></svg>`;
@@ -1141,11 +1182,26 @@ function showInviteToast(message = 'Đã copy lời mời ✨') {
     toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
 }
 
-window.currentInviteCardMode = 'story';
+let inviteMode = 'story';
+window.currentInviteMode = inviteMode;
+window.currentInviteCardMode = inviteMode;
+
+function getCurrentInviteMode() {
+    const mode = (window.currentInviteMode || window.currentInviteCardMode || inviteMode || 'story').toLowerCase();
+    return mode === 'square' ? 'square' : 'story';
+}
+
+function getInviteExportSize() {
+    return getCurrentInviteMode() === 'square'
+        ? { width: 1080, height: 1080 }
+        : { width: 1080, height: 1920 };
+}
 
 window.setInviteCardMode = function(mode = 'story') {
     const normalizedMode = mode === 'square' ? 'square' : 'story';
     const card = document.getElementById('invite-card-preview');
+    inviteMode = normalizedMode;
+    window.currentInviteMode = normalizedMode;
     window.currentInviteCardMode = normalizedMode;
 
     if (card) {
@@ -1252,25 +1308,22 @@ async function generateInviteCanvasFallback() {
     const name = (document.getElementById('inv-name')?.value.trim() || 'Tên người ấy...').slice(0, 40);
     const message = (document.getElementById('inv-message')?.value.trim() || 'Cuối tuần này rảnh không, đi đổi gió cùng tớ nhé!').slice(0, 160);
     const inviteDate = formatInviteDate(document.getElementById('inv-date')?.value);
-    const isSquare = (document.getElementById('invite-card-preview')?.dataset.mode || window.currentInviteCardMode) === 'square';
+    const { width: targetWidth, height: targetHeight } = getInviteExportSize();
+    const isSquare = getCurrentInviteMode() === 'square';
     const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = isSquare ? 1080 : 1920;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     const ctx = canvas.getContext('2d');
     const bgImage = await loadInviteCanvasImage(getComboImage(combo));
+
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (bgImage) {
         const scale = Math.max(canvas.width / bgImage.width, canvas.height / bgImage.height);
         const width = bgImage.width * scale;
         const height = bgImage.height * scale;
         ctx.drawImage(bgImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-    } else {
-        const fallbackGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-        fallbackGradient.addColorStop(0, '#26101c');
-        fallbackGradient.addColorStop(0.5, '#111827');
-        fallbackGradient.addColorStop(1, '#2b1208');
-        ctx.fillStyle = fallbackGradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     const overlay = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1297,7 +1350,7 @@ async function generateInviteCanvasFallback() {
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 27px Inter, Arial, sans-serif';
-    ctx.fillText('DATE PLANNER', 154, 132);
+    ctx.fillText('DatePlanner', 154, 132);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(113, 121, 30, 0, Math.PI * 2);
@@ -1358,10 +1411,55 @@ async function generateInviteCanvasFallback() {
     });
 }
 
+function drawInviteSourceToTargetCanvas(sourceCanvas, targetWidth, targetHeight) {
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = targetWidth;
+    outputCanvas.height = targetHeight;
+
+    const ctx = outputCanvas.getContext('2d');
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+    const sourceRatio = sourceCanvas.width / sourceCanvas.height;
+    const targetRatio = targetWidth / targetHeight;
+    let drawWidth;
+    let drawHeight;
+    let offsetX;
+    let offsetY;
+
+    if (sourceRatio > targetRatio) {
+        drawHeight = targetHeight;
+        drawWidth = targetHeight * sourceRatio;
+        offsetX = (targetWidth - drawWidth) / 2;
+        offsetY = 0;
+    } else {
+        drawWidth = targetWidth;
+        drawHeight = targetWidth / sourceRatio;
+        offsetX = 0;
+        offsetY = (targetHeight - drawHeight) / 2;
+    }
+
+    ctx.drawImage(sourceCanvas, offsetX, offsetY, drawWidth, drawHeight);
+    return outputCanvas;
+}
+
+function canvasToInviteBlob(canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) reject(new Error('Cannot create invite PNG.'));
+            else resolve(blob);
+        }, 'image/png', 1);
+    });
+}
+
 window.generateInviteImage = async function() {
-    const card = document.getElementById('invite-card-preview');
+    const card = document.getElementById('invite-card-preview')
+        || document.getElementById('invite-preview')
+        || document.getElementById('invite-card')
+        || document.querySelector('.invite-preview');
     if (!card) throw new Error('Invite preview is missing.');
     if (!window.html2canvas) return generateInviteCanvasFallback();
+    const { width: targetWidth, height: targetHeight } = getInviteExportSize();
 
     const bg = document.getElementById('inv-card-bg');
     if (bg && !bg.complete) {
@@ -1371,23 +1469,24 @@ window.generateInviteImage = async function() {
         });
     }
 
-    const canvas = await window.html2canvas(card, {
-        backgroundColor: null,
-        useCORS: true,
-        allowTaint: false,
-        scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
-        width: card.offsetWidth,
-        height: card.offsetHeight,
-        windowWidth: document.documentElement.clientWidth,
-        windowHeight: document.documentElement.clientHeight
-    });
-
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-            if (!blob) reject(new Error('Cannot create invite PNG.'));
-            else resolve(blob);
-        }, 'image/png', 1);
-    });
+    try {
+        const sourceCanvas = await window.html2canvas(card, {
+            backgroundColor: null,
+            useCORS: true,
+            allowTaint: false,
+            scale: 2,
+            logging: false,
+            width: card.offsetWidth,
+            height: card.offsetHeight,
+            windowWidth: document.documentElement.clientWidth,
+            windowHeight: document.documentElement.clientHeight
+        });
+        const outputCanvas = drawInviteSourceToTargetCanvas(sourceCanvas, targetWidth, targetHeight);
+        return canvasToInviteBlob(outputCanvas);
+    } catch (error) {
+        console.warn('Dùng fallback canvas cho E-Invite:', error);
+        return generateInviteCanvasFallback();
+    }
 };
 
 window.downloadInviteImage = async function() {
@@ -1395,14 +1494,17 @@ window.downloadInviteImage = async function() {
     try {
         setInviteButtonLoading(button, true, 'Đang lưu');
         const blob = await window.generateInviteImage();
+        const { width: targetWidth, height: targetHeight } = getInviteExportSize();
+        const mode = getCurrentInviteMode();
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'dateplanner-invite.png';
+        link.download = `DatePlanner-EInvite-${mode}-${targetWidth}x${targetHeight}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        console.log(`E-Invite exported: ${targetWidth}x${targetHeight}`);
         showInviteToast('Đã tạo ảnh PNG ✨');
     } catch (error) {
         console.error(error);
@@ -1417,7 +1519,9 @@ window.shareInviteImage = async function() {
     try {
         setInviteButtonLoading(button, true, 'Đang chia sẻ');
         const blob = await window.generateInviteImage();
-        const file = new File([blob], 'dateplanner-invite.png', { type: 'image/png' });
+        const { width: targetWidth, height: targetHeight } = getInviteExportSize();
+        const mode = getCurrentInviteMode();
+        const file = new File([blob], `DatePlanner-EInvite-${mode}-${targetWidth}x${targetHeight}.png`, { type: 'image/png' });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
